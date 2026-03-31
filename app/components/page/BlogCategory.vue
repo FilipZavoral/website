@@ -11,8 +11,6 @@ const categoryStem = computed(() => {
   return props.category?.path?.split('/').pop()
 })
 
-const { data: blogCategories } = await useDataBlogCategories()
-
 const { data: articles } = await useAsyncData('blog-articles-list', async () => {
   let query = queryCollection('blogArticles').order('id', 'DESC')
 
@@ -34,6 +32,7 @@ const categoryDescription = computed(() => {
 </script>
 
 <template>
+
   <Head>
     <Title>{{ categoryTitle }}</Title>
     <Meta name="description" :content="categoryDescription" />
@@ -46,17 +45,8 @@ const categoryDescription = computed(() => {
     <header class="mb-8">
       <h1 class="text-4xl font-bold">{{ categoryTitle }}</h1>
 
-      <div v-if="!category && blogCategories?.length" class="mt-4 flex flex-wrap gap-2">
-        <UButton
-          v-for="cat in blogCategories"
-          :key="cat.path"
-          :to="cat.path"
-          variant="subtle"
-          color="neutral"
-          size="md"
-        >
-          {{ cat.title }}
-        </UButton>
+      <div class="flex flex-wrap gap-2 my-10">
+        <CategoriesBadges v-if="!category" class="mt-4" />
       </div>
     </header>
 
@@ -65,19 +55,15 @@ const categoryDescription = computed(() => {
     </div>
 
     <UBlogPosts v-if="articles?.length" orientation="vertical">
-      <UBlogPost
-        v-for="article in articles"
-        :key="article.path"
-        :title="article.title"
+      <UBlogPost v-for="article in articles" :key="article.path" :title="article.title"
         :description="article.description"
         :image="article.thumbnail || 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAD0lEQVR4AQEEAPv/AMzMzATMAmVMDHrmAAAAAElFTkSuQmCC'"
-        :date="article.published"
-        :badge="article.categories?.[0]"
-        :to="article.path"
-        orientation="horizontal"
-        variant="naked"
-        :ui="{ root: 'overflow-visible', header: 'border border-gray-600/10' }"
-      />
+        :date="article.published" :to="article.path" orientation="horizontal" variant="naked"
+        :ui="{ root: 'overflow-visible', header: 'border border-gray-600/10', meta: 'flex-wrap' }">
+        <template #badge>
+          <CategoriesBadges v-if="article.categories" :categories-stems="article.categories" size="xs" disabled />
+        </template>
+      </UBlogPost>
     </UBlogPosts>
     <p v-else class="text-center text-gray-500 py-8">Žádné články</p>
   </div>
