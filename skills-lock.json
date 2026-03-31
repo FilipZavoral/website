@@ -24,7 +24,7 @@
     "nuxt-ui": {
       "source": "nuxt/ui",
       "sourceType": "github",
-      "computedHash": "9b7ff4c14185b7205c04c7ef41969d7b5c01e59c85e6d64083a7f497bf90b8d7"
+      "computedHash": "393941c018456a32ca6a86c71e9400d43d58d3418cfb4b53e3f5b57d862f65b1"
     },
     "nuxthub": {
       "source": "onmax/nuxt-skills",
@@ -39,7 +39,7 @@
     "vueuse": {
       "source": "onmax/nuxt-skills",
       "sourceType": "github",
-      "computedHash": "727e42c9267608e514f5b602eadb6bb88078d30aa39b8c107522f5215ca9dff2"
+      "computedHash": "a4f2d8e5223ed6598fdc733c491cd94edeb9125e128f7205f169ca9283b9d425"
     }
   }
 }
