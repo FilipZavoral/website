@@ -32,34 +32,22 @@ watchEffect(async () => {
 
 <template>
   <div v-if="author" class="flex items-start md:items-center gap-8 py-6">
-    <UAvatar
-      :src="author.avatar"
-      :alt="author.title"
-      size="3xl"
-      :ui="{ root: 'size-16 sm:size-20 md:size-36' }"
-    />
+    <UAvatar :src="author.avatar" :alt="author.title" size="3xl" :ui="{ root: 'size-16 sm:size-20 md:size-36' }" />
 
-    <div class="flex-1 min-w-0">
+    <div class="flex-1 min-w-0 -mb-5">
       <div class="flex gap-4 flex-wrap items-center">
         <h3 class="font-semibold text-lg grow">{{ author.title }}</h3>
         <div class="flex gap-4">
-          <UModal v-if="author.donateLnAddress" v-model:open="isDonateOpen" title="Podpořit přes Lightning" :ui="{ footer: 'justify-center' }">
-            <UButton
-              size="md"
-              trailing-icon="i-bitcoin-icons-lightning-filled"
-            >
+          <UModal v-if="author.donateLnAddress" v-model:open="isDonateOpen" title="Podpořit přes Lightning"
+            :ui="{ footer: 'justify-center' }">
+            <UButton size="md" trailing-icon="i-bitcoin-icons-lightning-filled">
               Podpořit
             </UButton>
 
             <template #body>
               <div class="flex flex-col items-center gap-4">
                 <div class="rounded-lg border border-muted p-3 bg-white">
-                  <img
-                    v-if="qrCodeDataUrl"
-                    :src="qrCodeDataUrl"
-                    :alt="`QR ${author?.title || ''}`"
-                    class="h-48 w-48"
-                  />
+                  <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" :alt="`QR ${author?.title || ''}`" class="h-48 w-48" />
                   <div v-else class="h-48 w-48 flex items-center justify-center text-sm text-muted">
                     QR se připravuje...
                   </div>
@@ -67,12 +55,8 @@ watchEffect(async () => {
                 <p class="text-sm text-muted text-center break-words">
                   {{ author?.donateLnAddress }}
                 </p>
-                <UButton
-                  v-if="lightningUrl"
-                  :to="lightningUrl"
-                  target="_blank"
-                  trailing-icon="i-bitcoin-icons-lightning-filled"
-                >
+                <UButton v-if="lightningUrl" :to="lightningUrl" target="_blank"
+                  trailing-icon="i-bitcoin-icons-lightning-filled">
                   Otevřít peněženku
                 </UButton>
               </div>
@@ -82,11 +66,8 @@ watchEffect(async () => {
         </div>
       </div>
 
-      <ContentRenderer
-        v-if="author.body"
-        :value="author"
-        class="text-sm text-muted prose dark:prose-invert prose-sm mt-1"
-      />
+      <ContentRenderer v-if="author.body" :value="author"
+        class="text-sm text-muted prose dark:prose-invert prose-sm mt-1" />
     </div>
   </div>
 </template>
