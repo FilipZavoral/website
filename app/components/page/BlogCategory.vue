@@ -11,8 +11,10 @@ const categoryStem = computed(() => {
   return props.category?.path?.split('/').pop()
 })
 
-const { data: articles } = await useAsyncData('blog-articles-list', async () => {
-  let query = queryCollection('blogArticles').order('id', 'DESC')
+const { data: articles } = await useAsyncData(() => `blog-articles-list-${categoryStem.value || 'all'}`, async () => {
+  let query = queryCollection('blogArticles')
+    .order('id', 'DESC')
+    .select('path', 'title', 'description', 'thumbnail', 'published', 'categories')
 
   if (categoryStem.value) {
     query = query.where('categories', 'LIKE', `%${categoryStem.value}%`)
@@ -43,10 +45,13 @@ const categoryDescription = computed(() => {
 
   <div class="max-w-3xl mx-auto py-8 px-4">
     <header class="mb-8">
+      <UButton v-if="categoryStem" color="neutral" variant="link"
+        leading-icon="i-streamline-interface-arrows-left-arrow-keyboard-left" to="/blog">Všechny články</UButton>
+
       <h1 class="text-4xl font-bold">{{ categoryTitle }}</h1>
 
-      <div class="flex flex-wrap gap-2 my-10">
-        <CategoriesBadges v-if="!category" class="mt-4" />
+      <div v-if="!category" class="flex flex-wrap gap-2 my-10">
+        <CategoriesBadges class="mt-4" />
       </div>
     </header>
 
