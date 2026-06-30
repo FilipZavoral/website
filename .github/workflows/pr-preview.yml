@@ -64,8 +64,13 @@ jobs:
 
           # No Cloudflare credentials are present, so --temporary is allowed and lands
           # in a fresh isolated account. Capture output to parse the preview URL.
+          #
+          # Run from the repo root so wrangler follows Nuxt's redirect config at
+          # .wrangler/deploy/config.json -> .output/server/wrangler.json. Using
+          # --cwd .output/server instead makes wrangler see both the redirect config
+          # and the user config with mismatched base paths and abort.
           set +e
-          npx wrangler deploy --temporary --cwd .output/server 2>&1 | tee deploy.log
+          npx wrangler deploy --temporary 2>&1 | tee deploy.log
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
