@@ -61,10 +61,12 @@ Nejlepší modely můžeš použít třeba přes [PPQ.ai](https://ppq.ai/invite/
 
 Ke každému pull requestu se přes [`wrangler deploy --temporary`](https://developers.cloudflare.com/workers/platform/claim-deployments/) nasadí dočasný náhled na izolovaný Cloudflare účet a do PR se přidá komentář s odkazem. Funguje i pro forky – nepoužívá žádný Cloudflare token.
 
-- Náhled **nemá přístup k produkci** – produkční `database_id` se do buildu nedostane (proměnná `PREVIEW_DEPLOY`), obsah se naplní z `dump.*.sql`.
+- Náhled **nemá přístup k produkční databázi**.
 - **Vyprší za ~60 min**; po každém commitu se nasadí čerstvý.
-- Pro trvalý náhled spusť `npx wrangler deploy --temporary` lokálně. První PR od nového přispěvatele může vyžadovat schválení (**Settings → Actions → General**).
+- Pro trvalý náhled spusť `npx wrangler deploy --temporary` lokálně.
+- První PR může vyžadovat schválení (pokud máš nový GitHub účet).
 
-Napsat nám můžeš i souukromě:
+Napsat nám můžeš i soukromě:
+
 - [Honza Pobořil](https://honza.poboril.cz) - autor a správce (UX výzkum, design, frontend, backend, devops)
-- TODO - šefredaktor blogu
+- [@Long-BTC-81](https://x.com/TomBures81) - šefredaktor blogu
