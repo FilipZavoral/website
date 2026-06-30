@@ -110,19 +110,9 @@ jobs:
 
             const body = [
               marker,
-              '### 🔍 Náhledová verze (preview)',
+              `🔍 **Náhled:** ${previewUrl} · \`${shaShort}\``,
               '',
-              `**URL:** ${previewUrl}`,
-              '',
-              `Nasazeno z commitu \`${shaShort}\`.`,
-              '',
-              '> ⏳ Tento náhled běží na dočasném, izolovaném Cloudflare účtu a **vyprší přibližně za 60 minut**.',
-              '> Po každém novém commitu se nasadí čerstvý náhled.',
-              '>',
-              '> Nemá přístup k produkční databázi ani k žádným produkčním bindingům.',
-              '>',
-              '> Pokud si chceš náhled ponechat natrvalo, spusť lokálně `npx wrangler deploy --temporary`',
-              '> a otevři claim URL, kterou ti Wrangler vypíše (tu z bezpečnostních důvodů nezveřejňujeme).',
+              '<sub>⏳ Dočasný izolovaný náhled, vyprší za ~60 min, bez přístupu k produkci. Po každém commitu se nasadí čerstvý. Ponechat natrvalo → [README](https://github.com/jednadvacetorg/website#náhledové-verze-review-apps).</sub>',
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
