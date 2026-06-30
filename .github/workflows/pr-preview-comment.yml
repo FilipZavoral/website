@@ -16,6 +16,22 @@ on:
   workflow_run:
     workflows: ["PR Preview (deploy)"]
     types: [completed]
+  # Manual trigger for testing the comment without a full deploy run.
+  # NOTE: must be run from the default branch (Actions tab → this workflow → Run workflow).
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to comment on"
+        required: true
+        type: string
+      preview_url:
+        description: "Preview URL (https://*.workers.dev)"
+        required: true
+        type: string
+      head_sha:
+        description: "Commit SHA (optional)"
+        required: false
+        type: string
 
 permissions:
   pull-requests: write
@@ -25,9 +41,10 @@ jobs:
   comment:
     name: Post preview URL
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success') }}
     steps:
       - name: Download preview metadata
+        if: ${{ github.event_name == 'workflow_run' }}
         uses: actions/download-artifact@v4
         with:
           name: pr-preview-meta
@@ -35,14 +52,25 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Validate untrusted artifact contents
+      - name: Validate inputs (artifact or manual dispatch)
         id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_PREVIEW_URL: ${{ github.event.inputs.preview_url }}
+          INPUT_HEAD_SHA: ${{ github.event.inputs.head_sha }}
         run: |
           set -euo pipefail
 
-          pr_number="$(cat preview-meta/pr_number.txt | tr -d '[:space:]')"
-          preview_url="$(cat preview-meta/preview_url.txt | tr -d '[:space:]')"
-          head_sha="$(cat preview-meta/pr_head_sha.txt | tr -d '[:space:]')"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            pr_number="$(printf '%s' "$INPUT_PR_NUMBER" | tr -d '[:space:]')"
+            preview_url="$(printf '%s' "$INPUT_PREVIEW_URL" | tr -d '[:space:]')"
+            head_sha="$(printf '%s' "$INPUT_HEAD_SHA" | tr -d '[:space:]')"
+          else
+            pr_number="$(cat preview-meta/pr_number.txt | tr -d '[:space:]')"
+            preview_url="$(cat preview-meta/preview_url.txt | tr -d '[:space:]')"
+            head_sha="$(cat preview-meta/pr_head_sha.txt | tr -d '[:space:]')"
+          fi
 
           # PR number must be a positive integer.
           if ! printf '%s' "$pr_number" | grep -qE '^[0-9]+$'; then
