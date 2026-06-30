@@ -46,13 +46,25 @@ export default defineNuxtConfig({
         assets: {
           html_handling: 'drop-trailing-slash',
         },
-        d1_databases: [
-          {
-            binding: 'DB',
-            database_name: 'web',
-            database_id: '76d271b2-5335-40ba-81dd-bf7e1ef79522'
-          }
-        ],
+        // For ephemeral PR review apps (`wrangler deploy --temporary`) we must NOT
+        // reference the production database_id, as it does not exist in the
+        // throwaway temporary account. Leaving the binding without an id makes it a
+        // "draft" binding that Wrangler auto-provisions as a fresh, isolated D1.
+        // Nuxt Content then self-seeds it from the public dump.*.sql assets at runtime.
+        d1_databases: process.env.PREVIEW_DEPLOY
+          ? [
+              {
+                binding: 'DB',
+                database_name: 'web-preview',
+              }
+            ]
+          : [
+              {
+                binding: 'DB',
+                database_name: 'web',
+                database_id: '76d271b2-5335-40ba-81dd-bf7e1ef79522'
+              }
+            ],
         observability: {
           enabled: true,
           logs: {

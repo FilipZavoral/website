@@ -1,0 +1,112 @@
+name: PR Preview (deploy)
+
+# Builds the PR and deploys it to an ephemeral, isolated Cloudflare account using
+# `wrangler deploy --temporary` (Cloudflare "Claim deployments").
+#
+# SECURITY MODEL:
+# - This workflow runs in the `pull_request` context. For PRs from forks, GitHub
+#   gives it a READ-ONLY token and NO secrets, so untrusted PR code cannot abuse
+#   any credentials. That is exactly why this is safe for non-maintainers.
+# - `wrangler deploy --temporary` requires NO Cloudflare credentials. It creates a
+#   brand-new, throwaway Cloudflare account, deploys to a *.workers.dev URL, and the
+#   account self-destructs after 60 minutes if unclaimed. The production Cloudflare
+#   account, its D1 database and any other bindings are completely inaccessible.
+# - The sensitive "claim URL" is masked from the logs. Only the public preview URL
+#   is exported, to be posted by the separate `pr-preview-comment.yml` workflow.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+# Drop all permissions; this job needs none (no secrets, no API calls to GitHub).
+permissions: {}
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build & deploy temporary preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Cloudflare Workers, preview bindings)
+        env:
+          # Strips the production D1 database_id from the generated wrangler.json
+          # so the temporary account provisions its own fresh, isolated database.
+          PREVIEW_DEPLOY: "1"
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
+
+      - name: Deploy to temporary Cloudflare account
+        id: deploy
+        run: |
+          set -euo pipefail
+
+          # Sanity-check: the build output must NOT contain the production database_id.
+          if grep -q "76d271b2-5335-40ba-81dd-bf7e1ef79522" .output/server/wrangler.json; then
+            echo "::error::Preview build leaked the production D1 database_id. Aborting."
+            exit 1
+          fi
+
+          # No Cloudflare credentials are present, so --temporary is allowed and lands
+          # in a fresh isolated account. Capture output to parse the preview URL.
+          set +e
+          npx wrangler deploy --temporary --cwd .output/server 2>&1 | tee deploy.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::wrangler deploy --temporary failed (exit $status)."
+            exit "$status"
+          fi
+
+          # Mask the claim URL so it never appears in public logs. The claim URL is a
+          # bearer credential that grants ownership of the temporary account.
+          claim_url="$(grep -oE 'https://dash\.cloudflare\.com/claim-preview[^[:space:]]*' deploy.log | head -n1 || true)"
+          if [ -n "$claim_url" ]; then
+            echo "::add-mask::$claim_url"
+          fi
+
+          # Parse the public preview URL (the deployed *.workers.dev site).
+          preview_url="$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev[^[:space:]]*' deploy.log | grep -v 'claim-preview' | head -n1 || true)"
+
+          if [ -z "$preview_url" ]; then
+            echo "::error::Could not parse a preview URL from wrangler output."
+            exit 1
+          fi
+
+          echo "Preview URL: $preview_url"
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+
+      - name: Write preview metadata artifact
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p preview-meta
+          # Store as discrete, easy-to-validate fields (no executable content).
+          printf '%s\n' "$PR_NUMBER" > preview-meta/pr_number.txt
+          printf '%s\n' "$PR_HEAD_SHA" > preview-meta/pr_head_sha.txt
+          printf '%s\n' "$PREVIEW_URL" > preview-meta/preview_url.txt
+
+      - name: Upload preview metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-meta
+          path: preview-meta/
+          retention-days: 1
