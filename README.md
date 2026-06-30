@@ -59,19 +59,11 @@ Nejlepší modely můžeš použít třeba přes [PPQ.ai](https://ppq.ai/invite/
 
 ## Náhledové verze (review apps)
 
-Ke každému pull requestu se automaticky nasadí dočasná náhledová verze webu a do PR se přidá komentář s odkazem. Funguje i pro příspěvky od ne-správců (forky), protože nevyžaduje žádné přístupové údaje.
+Ke každému pull requestu se přes [`wrangler deploy --temporary`](https://developers.cloudflare.com/workers/platform/claim-deployments/) nasadí dočasný náhled na izolovaný Cloudflare účet a do PR se přidá komentář s odkazem. Funguje i pro forky – nepoužívá žádný Cloudflare token.
 
-- Náhled běží na **dočasném, izolovaném Cloudflare účtu** vytvořeném pomocí `wrangler deploy --temporary` (funkce [Claim deployments](https://developers.cloudflare.com/workers/platform/claim-deployments/)).
-- Tento účet **nemá přístup k produkční databázi ani k žádným produkčním bindingům** – produkční `database_id` se do náhledového buildu vůbec nedostane (řízeno proměnnou `PREVIEW_DEPLOY` v `nuxt.config.ts`). Obsah si náhled sám naplní z `dump.*.sql` při prvním požadavku.
-- Náhled **vyprší přibližně za 60 minut**. Po každém commitu se nasadí čerstvý.
-- Pro nasazení se **nepoužívá žádný Cloudflare token** – build i nasazení běží v read-only kontextu `pull_request`, takže kód z forku nemůže zneužít žádné tajné údaje.
-
-Workflow soubory:
-
-- `.github/workflows/pr-preview.yml` – build + `wrangler deploy --temporary` (bez secretů).
-- `.github/workflows/pr-preview-comment.yml` – přidá/aktualizuje komentář s URL. Běží přes `workflow_run`, takže se vždy spustí verze z `master` (ne z PR) a má jen oprávnění `pull-requests: write`.
-
-První příspěvek od nového přispěvatele může vyžadovat jednorázové schválení správcem (nastavení **Settings → Actions → General → Fork pull request workflows**). Pokud si chceš náhled ponechat natrvalo, spusť `npx wrangler deploy --temporary` lokálně a otevři claim URL, kterou Wrangler vypíše.
+- Náhled **nemá přístup k produkci** – produkční `database_id` se do buildu nedostane (proměnná `PREVIEW_DEPLOY`), obsah se naplní z `dump.*.sql`.
+- **Vyprší za ~60 min**; po každém commitu se nasadí čerstvý.
+- Pro trvalý náhled spusť `npx wrangler deploy --temporary` lokálně. První PR od nového přispěvatele může vyžadovat schválení (**Settings → Actions → General**).
 
 Napsat nám můžeš i souukromě:
 - [Honza Pobořil](https://honza.poboril.cz) - autor a správce (UX výzkum, design, frontend, backend, devops)

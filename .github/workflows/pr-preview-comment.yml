@@ -1,23 +1,14 @@
 name: PR Preview (comment)
 
-# Posts/updates a sticky PR comment with the preview URL produced by `pr-preview.yml`.
-#
-# SECURITY MODEL:
-# - This uses the `workflow_run` trigger, which ALWAYS executes the version of this
-#   file from the default branch (master) — never the version in an attacker's PR.
-#   So a forked PR cannot alter what this privileged job does.
-# - It is granted ONLY `pull-requests: write` (to comment) and `actions: read`
-#   (to download the artifact). No Cloudflare secret is used or needed.
-# - The artifact from the untrusted build is treated as UNTRUSTED DATA: the PR number
-#   is validated as an integer and the preview URL is validated against a strict
-#   *.workers.dev regex before use. Nothing from the artifact is ever executed.
+# Posts a sticky PR comment with the preview URL from pr-preview.yml.
+# Runs via `workflow_run` (always uses the master copy, not the PR's) with only
+# pull-requests:write. Artifact data is treated as untrusted and validated below.
 
 on:
   workflow_run:
     workflows: ["PR Preview (deploy)"]
     types: [completed]
-  # Manual trigger for testing the comment without a full deploy run.
-  # NOTE: must be run from the default branch (Actions tab → this workflow → Run workflow).
+  # Manual trigger for testing (must be run from the default branch).
   workflow_dispatch:
     inputs:
       pr_number:
@@ -72,21 +63,17 @@ jobs:
             head_sha="$(cat preview-meta/pr_head_sha.txt | tr -d '[:space:]')"
           fi
 
-          # PR number must be a positive integer.
+          # Validate untrusted inputs strictly before use.
           if ! printf '%s' "$pr_number" | grep -qE '^[0-9]+$'; then
-            echo "::error::Invalid PR number in artifact."
+            echo "::error::Invalid PR number."
             exit 1
           fi
-
-          # Preview URL must be a plain https *.workers.dev URL — nothing else.
           if ! printf '%s' "$preview_url" | grep -qE '^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev(/.*)?$'; then
-            echo "::error::Invalid or unexpected preview URL in artifact."
+            echo "::error::Invalid preview URL."
             exit 1
           fi
-
-          # Commit SHA must look like a hex sha (40 chars), if present.
           if [ -n "$head_sha" ] && ! printf '%s' "$head_sha" | grep -qE '^[0-9a-f]{7,40}$'; then
-            echo "::error::Invalid head SHA in artifact."
+            echo "::error::Invalid head SHA."
             exit 1
           fi
 
