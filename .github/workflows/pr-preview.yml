@@ -80,12 +80,14 @@ jobs:
           PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           mkdir -p preview-meta
           printf '%s\n' "$PR_NUMBER" > preview-meta/pr_number.txt
           printf '%s\n' "$PR_HEAD_SHA" > preview-meta/pr_head_sha.txt
           printf '%s\n' "$PREVIEW_URL" > preview-meta/preview_url.txt
+          printf '%s\n' "$RUN_URL" > preview-meta/run_url.txt
 
       - name: Upload preview metadata
         uses: actions/upload-artifact@v4
