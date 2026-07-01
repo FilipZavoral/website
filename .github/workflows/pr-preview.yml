@@ -1,0 +1,97 @@
+name: PR Preview (deploy)
+
+# Deploys the PR to a throwaway Cloudflare account via `wrangler deploy --temporary`.
+# Runs in the fork-safe `pull_request` context: read-only token, no secrets.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  group: pr-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build & deploy temporary preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Cloudflare Workers, preview bindings)
+        env:
+          # Drops the prod D1 id so the temp account provisions its own fresh DB.
+          PREVIEW_DEPLOY: "1"
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: npm run build
+
+      - name: Deploy to temporary Cloudflare account
+        id: deploy
+        run: |
+          set -euo pipefail
+
+          # Guard: preview build must not contain the prod database_id.
+          if grep -q "76d271b2-5335-40ba-81dd-bf7e1ef79522" .output/server/wrangler.json; then
+            echo "::error::Preview build leaked the production D1 database_id. Aborting."
+            exit 1
+          fi
+
+          # Deploy from repo root so wrangler follows Nuxt's redirect config.
+          set +e
+          npx wrangler deploy --temporary 2>&1 | tee deploy.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error::wrangler deploy --temporary failed (exit $status)."
+            exit "$status"
+          fi
+
+          # Mask the claim URL (bearer credential) out of public logs.
+          claim_url="$(grep -oE 'https://dash\.cloudflare\.com/claim-preview[^[:space:]]*' deploy.log | head -n1 || true)"
+          if [ -n "$claim_url" ]; then
+            echo "::add-mask::$claim_url"
+          fi
+
+          preview_url="$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev[^[:space:]]*' deploy.log | grep -v 'claim-preview' | head -n1 || true)"
+
+          if [ -z "$preview_url" ]; then
+            echo "::error::Could not parse a preview URL from wrangler output."
+            exit 1
+          fi
+
+          echo "Preview URL: $preview_url"
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+
+      - name: Write preview metadata artifact
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.preview_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p preview-meta
+          printf '%s\n' "$PR_NUMBER" > preview-meta/pr_number.txt
+          printf '%s\n' "$PR_HEAD_SHA" > preview-meta/pr_head_sha.txt
+          printf '%s\n' "$PREVIEW_URL" > preview-meta/preview_url.txt
+          printf '%s\n' "$RUN_URL" > preview-meta/run_url.txt
+
+      - name: Upload preview metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-preview-meta
+          path: preview-meta/
+          retention-days: 1

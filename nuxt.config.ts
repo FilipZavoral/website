@@ -46,13 +46,22 @@ export default defineNuxtConfig({
         assets: {
           html_handling: 'drop-trailing-slash',
         },
-        d1_databases: [
-          {
-            binding: 'DB',
-            database_name: 'web',
-            database_id: '76d271b2-5335-40ba-81dd-bf7e1ef79522'
-          }
-        ],
+        // PR previews omit the prod database_id so the temp account auto-provisions
+        // a fresh D1 (Nuxt Content reseeds it from dump.*.sql). See review apps in README.
+        d1_databases: process.env.PREVIEW_DEPLOY
+          ? [
+              {
+                binding: 'DB',
+                database_name: 'web-preview',
+              }
+            ]
+          : [
+              {
+                binding: 'DB',
+                database_name: 'web',
+                database_id: '76d271b2-5335-40ba-81dd-bf7e1ef79522'
+              }
+            ],
         observability: {
           enabled: true,
           logs: {

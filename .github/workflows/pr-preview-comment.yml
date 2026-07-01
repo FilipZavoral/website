@@ -1,0 +1,143 @@
+name: PR Preview (comment)
+
+# Posts a sticky PR comment with the preview URL from pr-preview.yml.
+# Runs via `workflow_run` (always uses the master copy, not the PR's) with only
+# pull-requests:write. Artifact data is treated as untrusted and validated below.
+
+on:
+  workflow_run:
+    workflows: ["PR Preview (deploy)"]
+    types: [completed]
+  # Manual trigger for testing (must be run from the default branch).
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to comment on"
+        required: true
+        type: string
+      preview_url:
+        description: "Preview URL (https://*.workers.dev)"
+        required: true
+        type: string
+      head_sha:
+        description: "Commit SHA (optional)"
+        required: false
+        type: string
+      run_url:
+        description: "Deploy run URL (optional)"
+        required: false
+        type: string
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    name: Post preview URL
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success') }}
+    steps:
+      - name: Download preview metadata
+        if: ${{ github.event_name == 'workflow_run' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-preview-meta
+          path: preview-meta
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Validate inputs (artifact or manual dispatch)
+        id: meta
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          INPUT_PREVIEW_URL: ${{ github.event.inputs.preview_url }}
+          INPUT_HEAD_SHA: ${{ github.event.inputs.head_sha }}
+          INPUT_RUN_URL: ${{ github.event.inputs.run_url }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            pr_number="$(printf '%s' "$INPUT_PR_NUMBER" | tr -d '[:space:]')"
+            preview_url="$(printf '%s' "$INPUT_PREVIEW_URL" | tr -d '[:space:]')"
+            head_sha="$(printf '%s' "$INPUT_HEAD_SHA" | tr -d '[:space:]')"
+            run_url="$(printf '%s' "$INPUT_RUN_URL" | tr -d '[:space:]')"
+          else
+            pr_number="$(cat preview-meta/pr_number.txt | tr -d '[:space:]')"
+            preview_url="$(cat preview-meta/preview_url.txt | tr -d '[:space:]')"
+            head_sha="$(cat preview-meta/pr_head_sha.txt | tr -d '[:space:]')"
+            run_url="$(cat preview-meta/run_url.txt 2>/dev/null | tr -d '[:space:]' || true)"
+          fi
+
+          # Validate untrusted inputs strictly before use.
+          if ! printf '%s' "$pr_number" | grep -qE '^[0-9]+$'; then
+            echo "::error::Invalid PR number."
+            exit 1
+          fi
+          if ! printf '%s' "$preview_url" | grep -qE '^https://[a-z0-9-]+\.[a-z0-9-]+\.workers\.dev(/.*)?$'; then
+            echo "::error::Invalid preview URL."
+            exit 1
+          fi
+          if [ -n "$head_sha" ] && ! printf '%s' "$head_sha" | grep -qE '^[0-9a-f]{7,40}$'; then
+            echo "::error::Invalid head SHA."
+            exit 1
+          fi
+          # run_url is optional; drop it unless it's a github.com actions run URL.
+          if [ -n "$run_url" ] && ! printf '%s' "$run_url" | grep -qE '^https://github\.com/[A-Za-z0-9._-]+/[A-Za-z0-9._-]+/actions/runs/[0-9]+$'; then
+            run_url=""
+          fi
+
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+          echo "preview_url=$preview_url" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+          echo "run_url=$run_url" >> "$GITHUB_OUTPUT"
+
+      - name: Upsert sticky PR comment
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ steps.meta.outputs.pr_number }}
+          PREVIEW_URL: ${{ steps.meta.outputs.preview_url }}
+          HEAD_SHA: ${{ steps.meta.outputs.head_sha }}
+          RUN_URL: ${{ steps.meta.outputs.run_url }}
+        with:
+          script: |
+            const marker = '<!-- pr-preview-comment -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const previewUrl = process.env.PREVIEW_URL;
+            const headSha = process.env.HEAD_SHA || '';
+            const shaShort = headSha ? headSha.slice(0, 7) : 'unknown';
+            // Link to the deploy run's "Re-run jobs"; fall back to the PR Checks tab.
+            const rerunUrl = process.env.RUN_URL
+              || `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/pull/${prNumber}/checks`;
+
+            const body = [
+              marker,
+              `🔍 **Náhled:** ${previewUrl} · \`${shaShort}\``,
+              '',
+              `<sub>⏳ Toto je dočasné izolované prostředí které vyprší za ~60 min. Pokud už odkaz vypršel, tak můžeš poslat další commit. Můžeš si také vytvorit trvalý náhled, viz. [README](https://github.com/jednadvacetorg/website#náhledové-verze-review-apps).</sub>`,
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((c) => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
