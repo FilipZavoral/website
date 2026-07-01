@@ -115,7 +115,7 @@ jobs:
               marker,
               `🔍 **Náhled:** ${previewUrl} · \`${shaShort}\``,
               '',
-              `<sub>⏳ Toto je dočasné izolované prostředí které vyprší za ~60 min. Pokud už odkaz vypršel, tak můžeš spustit znova deployment ([Checks -> Re-run jobs](${rerunUrl})) nebo poslat další commit. Můžeš si také vytvorit trvalý náhles, viz. [README](https://github.com/jednadvacetorg/website#náhledové-verze-review-apps).</sub>`,
+              `<sub>⏳ Toto je dočasné izolované prostředí které vyprší za ~60 min. Pokud už odkaz vypršel, tak můžeš poslat další commit. Můžeš si také vytvorit trvalý náhled, viz. [README](https://github.com/jednadvacetorg/website#náhledové-verze-review-apps).</sub>`,
             ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
