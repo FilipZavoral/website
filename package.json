@@ -35,6 +35,6 @@
     "better-sqlite3": "^12.8.0",
     "typescript": "^5.9.3",
     "vue-tsc": "^3.2.6",
-    "wrangler": "^4.73.0"
+    "wrangler": "^4.102.0"
   }
 }
