@@ -5,11 +5,28 @@ const props = defineProps<{
   authorId: string
 }>()
 
-const { data: author } = await useAsyncData(`author-${props.authorId}`, async () => {
-  return await queryCollection('people').path(`/people/${props.authorId}`).first()
+const { data } = await useAsyncData(`author-${props.authorId}`, async () => {
+  const [author, articles, communities] = await Promise.all([
+    queryCollection('people').path(`/people/${props.authorId}`).first(),
+    queryCollection('blogArticles').order('id', 'DESC').select('path', 'title', 'authors').all(),
+    queryCollection('communities').order('title', 'ASC').select('path', 'title', 'organizers').all(),
+  ])
+
+  return {
+    author,
+    articles: articles.filter(article => article.authors?.includes(props.authorId)),
+    communities: communities.filter(community => community.organizers?.includes(props.authorId)),
+  }
 })
 
+if (!data.value?.author) throw createError(`/content/people/${props.authorId}.vue nenalezen`)
+
+const author = computed(() => data.value?.author)
+const articles = computed(() => data.value?.articles || [])
+const communities = computed(() => data.value?.communities || [])
+
 const isDonateOpen = ref(false)
+const isArticlesOpen = ref(false)
 const qrCodeDataUrl = ref<string | null>(null)
 
 const lightningUrl = computed(() => {
@@ -52,7 +69,7 @@ watchEffect(async () => {
                     QR se připravuje...
                   </div>
                 </div>
-                <p class="text-sm text-muted text-center break-words">
+                <p class="text-sm text-muted text-center">
                   {{ author?.donateLnAddress }}
                 </p>
                 <UButton v-if="lightningUrl" :to="lightningUrl" target="_blank"
@@ -68,6 +85,31 @@ watchEffect(async () => {
 
       <ContentRenderer v-if="author.body" :value="author"
         class="text-sm text-muted prose dark:prose-invert prose-sm mt-1" />
+
+      <p v-if="articles.length || communities.length" class="mt-3 text-sm text-muted">
+        <template v-if="communities.length">
+          Organizátor
+          <template v-for="(community, index) in communities" :key="community.path">
+            <span v-if="index">, </span>
+            <ULink :to="community.path" class="text-primary hover:underline">{{ community.title }}</ULink>
+          </template>
+        </template>
+        <span v-if="articles.length && communities.length">, </span>
+        <template v-if="articles.length">
+          Autor
+          <UButton color="primary" variant="link" :label="`${articles.length} článků`" class="align-baseline" :ui="{ base: 'p-0' }" @click="isArticlesOpen = true" />.
+        </template>
+      </p>
+
+      <UModal v-if="articles.length" v-model:open="isArticlesOpen" title="Články autora">
+        <template #body>
+          <ul class="space-y-2">
+            <li v-for="article in articles" :key="article.path">
+              <ULink :to="article.path" class="text-primary hover:underline" @click="isArticlesOpen = false">{{ article.title }}</ULink>
+            </li>
+          </ul>
+        </template>
+      </UModal>
     </div>
   </div>
 </template>
