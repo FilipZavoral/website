@@ -12,6 +12,9 @@ node_modules
 .agents/skills/
 .claude/skills/
 .cursor/skills/
+.planning/*
+!.planning/codebase/
+!.planning/codebase/**
 
 # Logs
 logs
