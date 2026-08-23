@@ -1,5 +1,8 @@
 import { defineContentConfig, defineCollection, z, property } from '@nuxt/content'
 import { defineSitemapSchema } from '@nuxtjs/sitemap/content'
+import { communitySchema } from './shared/communitySchema'
+
+export { communitySchema } from './shared/communitySchema'
 
 const exclude = ['README.md']
 
@@ -46,11 +49,7 @@ export default defineContentConfig({
         exclude,
         prefix: '/',
       },
-      schema: z.object({
-        seo: property(z.any().optional()).editor({ hidden: true }),
-        navigation: property(z.any().optional()).editor({ hidden: true }),
-        sitemap: defineSitemapSchema(),
-      }),
+      schema: communitySchema,
     }),
 
     pages: defineCollection({

@@ -7,13 +7,14 @@ defineProps<{
 </script>
 
 <template>
+
   <Head>
     <Title>{{ community.title }}</Title>
     <Meta property="og:title" :content="community.title" />
     <Meta property="og:type" content="website" />
   </Head>
 
-  <div class="max-w-3xl mx-auto py-8 px-4">
+  <UContainer>
     <header class="mb-8">
       <h1 class="text-4xl font-bold">{{ community.title }}</h1>
     </header>
@@ -22,8 +23,8 @@ defineProps<{
       <ContentRenderer :value="community" />
     </div>
 
-    <div v-if="community.map" class="mb-6 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
-      <p class="text-sm text-gray-500 mb-2">📍 {{ community.title }}</p>
+    <div v-if="community.map" class="mb-6 rounded-lg border border-default p-4">
+      <p class="mb-2 text-sm text-muted">{{ community.title }}</p>
       <div class="text-sm">
         <p>Souřadnice: {{ community.map.lat }}, {{ community.map.lng }}</p>
         <p>Zoom: {{ community.map.zoom }}</p>
@@ -31,27 +32,18 @@ defineProps<{
     </div>
 
     <div v-if="community.signal_group" class="mb-6">
-      <a
-        :href="community.signal_group"
+      <UButton
+        :to="community.signal_group"
         target="_blank"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
-      >
-        <span>Připojit se do Signal skupiny</span>
-      </a>
+        rel="noopener noreferrer"
+        label="Připoj se do Signal skupiny"
+        trailing-icon="i-lucide-external-link"
+      />
     </div>
 
     <div v-if="community.organizers?.length" class="mt-8">
       <h2 class="text-xl font-semibold mb-4">Organizátoři</h2>
-      <ul class="space-y-2">
-        <li v-for="organizer in community.organizers" :key="organizer">
-          <NuxtLink
-            :to="`/people/${organizer}`"
-            class="text-primary-500 hover:underline"
-          >
-            {{ organizer }}
-          </NuxtLink>
-        </li>
-      </ul>
+      <AuthorBlock v-for="organizer in community.organizers" :key="organizer" :author-id="organizer" />
     </div>
-  </div>
+  </UContainer>
 </template>
