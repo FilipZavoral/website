@@ -10,7 +10,7 @@
 
 4. **Check package.json** - Always verify available dependencies before importing or using external libraries.
 
-5. **Run relevant verification** - After changes, run the relevant checks, including `npm run typecheck`. Run the production build when changing build configuration, integrations, or server code.
+5. **Run relevant verification** - After changes, run the checks described below. Do not treat typechecking alone as sufficient verification for content routing, UI behavior, or deployment configuration.
 
 ## Working Tree and Git Safety
 
@@ -22,9 +22,39 @@
 ## Project-Specific Knowledge
 
 - Dependencies are managed by npm (do not use pnpm or another package manager).
-- This is a Nuxt 4 application with `@nuxt/content` for content management
-- Blog articles are stored in `content/blog-articles/` with date prefixes in filenames (e.g., `20230816.bolt-karta-s-lnbits.md`)
+- This is a single Nuxt 4 application using Vue 3, TypeScript, Nuxt UI, and `@nuxt/content`. It is not a monorepo or an SPA-only application.
+- The application uses Nuxt SSR/Nitro and is deployed to Cloudflare Workers. Preserve Cloudflare compatibility and do not assume Node-native runtime APIs are available in production.
+- Blog articles are stored in `content/blog-articles/` with date prefixes in filenames (e.g., `20230816.bolt-karta-s-lnbits.md`).
 - The collection is defined in `content.config.ts`, check it when working with content files and keep correct frontmatter fields structure.
-- When querying blog articles, use `id` for ordering (contains date in filename)
-- Production environment is hosted on the Cloudflare Workers
+- When querying blog articles, use `id` for ordering because it contains the date from the filename.
+- `pages` and `communities` share the root URL space. Keep their public paths unique and preserve the routing precedence defined by the catch-all pages.
+- Source code lives in `app/`, `content/`, `shared/`, and root configuration files. Treat `.nuxt/`, `.output/`, `.data/`, root log files, and `node_modules/` as generated or diagnostic output rather than source of truth.
 - Treat content as actionable work only when it has a syntactic TODO marker or an unambiguous product placeholder. Ordinary editorial prose, including future-looking prose, is not an implementation task.
+
+## Coding Conventions
+
+- Vue components use `<script setup lang="ts">` and Nuxt auto-imported composables unless an explicit import is required.
+- Prefer generated Nuxt Content and Nuxt UI types. Do not expand `any` usage without a concrete framework-boundary reason.
+- Keep collection queries, frontmatter, routes, redirects, and sitemap behavior aligned with `content.config.ts`.
+- Reuse components from `app/components/` before adding new components, and prefer Nuxt UI primitives over custom controls.
+
+## Local Development Workflow
+
+- The devcontainer normally starts the development server automatically. Before starting another server, browse `http://localhost:2103/` with `agent-browser` to check whether it is already running.
+- If no server is running, start `npm run dev` as a background process and wait until Nuxt reports that it is ready. The command removes the temporary Nuxt Content SQLite database before startup, so do not run it again while an existing server is active.
+- Use the development server by default for debugging. Use a production build when verifying production-only behavior or one of the build-sensitive changes listed below.
+- This application is server-rendered. HTTP requests can help inspect server output, but they do not replace browser verification for hydration, client navigation, responsive layout, or interactive behavior.
+
+## Dev Container
+
+- Store temporary files under `/tmp`; access outside `/workspace` and `/tmp` is not permitted.
+- Save screenshots and browser artifacts under `/tmp/screenshots`. Do not add temporary artifacts to the repository.
+
+## Verification
+
+- Always run `npm run typecheck` after code or configuration changes.
+- Run relevant focused tests with `node --experimental-strip-types --test tests/*.test.ts` when the affected behavior has test coverage.
+- Run `npm run build` after changes to content schemas or routing, Nuxt configuration, integrations, shared build modules, or server/runtime behavior. The build also validates public content-route collisions.
+- Run `npm run build:cloudflare` when changing Cloudflare deployment behavior or production image-provider selection.
+- For UI and route changes, use `agent-browser` to inspect the rendered DOM at desktop and mobile sizes and take screenshots when visual evidence is useful. Do not install or use Puppeteer, Playwright, or another browser automation package.
+- Verify actual page content and error rendering rather than relying only on an HTTP status code or successful compilation.

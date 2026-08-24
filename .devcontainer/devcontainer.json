@@ -1,11 +1,15 @@
 {
 	"name": "Jednadvacet Dev",
-	"dockerComposeFile": [
-		"docker-compose.yml"
-	],
-	"service": "app",
+	"image": "ghcr.io/ibobik/opencode-gsd-devcontainer:latest",
+	"containerEnv": {
+		"XDG_DATA_HOME": "/workspace/.devcontainer/data"
+	},
 	"workspaceFolder": "/workspace",
-	"initializeCommand": "for id in $(docker ps -aq --filter 'status=removing'); do docker wait $id 2>/dev/null || true; done",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"runArgs": [
+		"--name",
+		"${localWorkspaceFolderBasename}-${devcontainerId}"
+	],
 	"postAttachCommand": "bash -c 'npm i && npm run dev'",
 	"customizations": {
 		"vscode": {
@@ -23,7 +27,9 @@
 			],
 			"settings": {
 				"[markdown]": {
-					"editor.wordWrap": "on"
+					"editor.wordWrap": "on",
+					"editor.formatOnSave": false,
+					"editor.defaultFormatter": null
 				},
 				"launch": {
 					"version": "0.2.0",

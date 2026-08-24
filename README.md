@@ -30,6 +30,8 @@ Projekt plně využívá konvence frameworku Nuxt. Pro pochopení struktury slo�
 
 Visual Studio Code nebo GitHub Workspace umožňují použít devcontainer, který má předinstalované doporučené extensions a nastavení. Cokoliv v něm spustíš (nebo AI agent) tak bude izolováno od tvého systému pomocí Docker kontejneru (nechat AI se autonomně hrabat v tvém počítači je opravdu špatný nápad 😉).
 
+Používáme image [`opencode-gsd-devcontainer`](https://github.com/iBobik/opencode-gsd-devcontainer), který kromě doporučených extensions a nastavení obsahuje i předpřipravený AI stack (více v sekci [OpenCode](#opencode---ai-agent) níže).
+
 Doporučený postup pro první spuštění (lokálně):
 
 1. Nainstaluj si [VSCode](https://code.visualstudio.com).
@@ -46,9 +48,16 @@ Doporučený postup pro první spuštění (lokálně):
 
 V pravém horním rohu je tlačítko `OpenCode` (nebo `Ctrl+Shift+P` a vybrat `OpenCode: Open`).
 
-V základu můžeš zdarma používat základní modely (denní limit, stačí na jednodušší úkoly)
+V základu můžeš zdarma používat free modely (obvykle denní limit, stačí na jednodušší úkoly).
 
-Nejlepší modely můžeš použít třeba přes [PPQ.ai](https://ppq.ai/invite/a586e70a) kde si nabíješ kredit (přes LN 10% sleva) a můžeš anonymně používat modely různých firem. Po nabítí kreditu si do souboru `.env` nastav svůj API klíč a restartuj devcontainer (`Ctrl+Shift+P` a vybrat `Dev Containers: Rebuild Container`).
+Nejlepší modely můžeš použít třeba přes [PPQ.ai](https://ppq.ai/invite/a586e70a), kde si nabiješ kredit (přes LN 5% sleva) a můžeš anonymně používat modely různých firem. Klíč poté přidáš přímo v OpenCode příkazem `/connect` → vyber **PPQ** → vlož klíč. Uloží se do gitignorované složky `.devcontainer/data/`, takže vydrží i po restartu devcontaineru.
+
+Image dále obsahuje:
+
+- **Model Council** – `/council <dotaz>` položí stejný dotaz více modelům a shrne, kde se shodují a kde ne (výchozí rada má 7 PPQ modelů od různých firem).
+- **GSD model profiles** – `GSD_MODELS_PROFILE=claude|gpt|mixed` před spuštěním `opencode` zvolí, jaké modely se použijí pro GSD agenty; `/gsd-models-profile` vypíše aktivní volbu.
+- **GSD** – autonomní plánování, implementace a verifikace větších úkolů. Začni přes `/gsd-onboard`
+- **Browser tooling** – Chromium, Playwright, agent-browser a gsd-browser pro práci s prohlížečem uvnitř kontejneru. Agenti jsou nastavení aby to použily automaticky.
 
 ## GIT workflow
 
