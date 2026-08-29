@@ -1,8 +1,12 @@
 import { defineContentConfig, defineCollection, z, property } from '@nuxt/content'
 import { defineSitemapSchema } from '@nuxtjs/sitemap/content'
-import { communitySchema } from './shared/communitySchema'
+import { routedContentSources } from './shared/data/contentRouteSources'
 
-export { communitySchema } from './shared/communitySchema'
+const commonSchema = {
+  seo: property(z.any().optional()).editor({ hidden: true }),
+  navigation: property(z.any().optional()).editor({ hidden: true }),
+  sitemap: property(defineSitemapSchema()).editor({ hidden: true }),
+}
 
 const exclude = ['README.md']
 
@@ -11,58 +15,65 @@ export default defineContentConfig({
     blogArticles: defineCollection({
       type: 'page',
       source: {
-        include: 'blog-articles/**',
+        include: `${routedContentSources.blogArticles.directory}/**`,
         exclude,
-        prefix: '/blog',
+        prefix: routedContentSources.blogArticles.prefix,
       },
       schema: z.object({
+        ...commonSchema,
         published: property(z.string().optional()).editor({ hidden: true }),
-        seo: property(z.any().optional()).editor({ hidden: true }),
-        navigation: property(z.any().optional()).editor({ hidden: true }),
         thumbnail: z.string(),
         title: z.string(),
         categories: z.array(z.string()).optional(),
         authors: z.array(z.string()).optional(),
         redirect_from: z.array(z.string()).optional(),
-        sitemap: defineSitemapSchema(),
       }).passthrough()
     }),
 
     blogCategories: defineCollection({
       type: 'page',
       source: {
-        include: 'blog-categories/**',
+        include: `${routedContentSources.blogCategories.directory}/**`,
         exclude,
-        prefix: '/blog',
+        prefix: routedContentSources.blogCategories.prefix,
       },
       schema: z.object({
-        seo: property(z.any().optional()).editor({ hidden: true }),
-        navigation: property(z.any().optional()).editor({ hidden: true }),
-        sitemap: defineSitemapSchema(),
+        ...commonSchema,
       }),
     }),
 
     communities: defineCollection({
       type: 'page',
       source: {
-        include: 'communities/**',
+        include: `${routedContentSources.communities.directory}/**`,
         exclude,
-        prefix: '/',
+        prefix: routedContentSources.communities.prefix,
       },
-      schema: communitySchema,
+      schema: z.object({
+        ...commonSchema,
+        title: z.string(),
+        region: z.string().trim().min(1),
+        priority: z.number().int().nonnegative().optional(),
+        map: property(z.object({
+          lat: z.number().finite().min(48).max(52),
+          lng: z.number().finite().min(12).max(19),
+          zoom: z.number().finite().optional(),
+        }).optional()).editor({ description: 'Najdi ideální souřadnice a zoom tak aby byly vidět všechny důležité body na mapě: https://labs.mapbox.com/location-helper/' }),
+        signal_group: z.string().url(),
+        portal_meetup_id: z.number().optional(),
+        organizers: z.array(z.string()).optional(),
+      }),
     }),
 
     pages: defineCollection({
       type: 'page',
       source: {
-        include: 'pages/**',
+        include: `${routedContentSources.pages.directory}/**`,
         exclude,
-        prefix: '/',
+        prefix: routedContentSources.pages.prefix,
       },
       schema: z.object({
-        seo: property(z.any().optional()).editor({ hidden: true }),
-        navigation: property(z.any().optional()).editor({ hidden: true }),
-        sitemap: defineSitemapSchema(),
+        ...commonSchema,
       }),
     }),
 

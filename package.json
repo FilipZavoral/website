@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "prepare": "npx skills experimental_install -y",
-    "build": "NODE_OPTIONS=--max-old-space-size=4096 nuxt build",
+    "build": "node --experimental-strip-types scripts/validate-content-routes.ts && NODE_OPTIONS=--max-old-space-size=4096 nuxt build",
+    "build:cloudflare": "CLOUDFLARE_DEPLOY=1 npm run build",
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "nuxt typecheck",
     "dev": "rm -rf .data/content && nuxt dev --port 2103"
   },
