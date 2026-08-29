@@ -10,7 +10,7 @@
 		"--name",
 		"${localWorkspaceFolderBasename}-${devcontainerId}"
 	],
-	"postAttachCommand": "bash -c 'npm i && npm run dev'",
+	"postAttachCommand": "bash -c 'npm i && npm run skills:install && npm run dev'",
 	"customizations": {
 		"vscode": {
 			"extensions": [

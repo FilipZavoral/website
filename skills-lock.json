@@ -49,11 +49,11 @@
       "skillPath": "skills/vue/SKILL.md",
       "computedHash": "cb120821c275a351b6e3c154d82cf62a9277b6260c2c30b3101f688928a3428b"
     },
-    "vueuse": {
-      "source": "onmax/nuxt-skills",
+    "vueuse-functions": {
+      "source": "vueuse/skills",
       "sourceType": "github",
-      "skillPath": "skills/vueuse/SKILL.md",
-      "computedHash": "81c6a7945aa6b1c5805235c88bab7543fd6c28c19414a75a5fe594c937fe792e"
+      "skillPath": "skills/vueuse-functions/SKILL.md",
+      "computedHash": "665497ecb63a43cef76fafcd1d5b7ec85311060d628452f40f9f9c4114157a83"
     }
   }
 }
