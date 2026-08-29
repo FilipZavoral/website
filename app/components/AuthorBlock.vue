@@ -48,50 +48,51 @@ watchEffect(async () => {
 </script>
 
 <template>
-  <div v-if="author" class="flex items-start md:items-center gap-8 py-6">
-    <UAvatar :src="author.avatar" :alt="author.title" size="3xl" :ui="{ root: 'size-16 sm:size-20 md:size-36' }" />
+  <div v-if="author" class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-8 py-6">
+    <UAvatar :src="author.avatar" :alt="author.title" size="3xl"
+      :ui="{ root: 'col-start-1 row-start-1 size-16 sm:size-20 md:size-36 sm:row-span-3 md:self-center' }" />
 
-    <div class="flex-1 min-w-0 -mb-5">
-      <div class="flex gap-4 flex-wrap items-center">
-        <h3 class="font-semibold text-lg grow">{{ author.title }}</h3>
-        <div class="flex gap-4">
-          <UModal v-if="author.donateLnAddress" v-model:open="isDonateOpen" title="Podpořit přes Lightning"
-            :ui="{ footer: 'justify-center' }">
-            <UButton size="md" trailing-icon="i-bitcoin-icons-lightning-filled">
-              Podpořit
-            </UButton>
+    <div class="col-start-2 row-start-1 flex gap-4 flex-wrap items-center min-w-0">
+      <h3 class="font-semibold text-lg grow">{{ author.title }}</h3>
+      <div class="flex gap-4">
+        <UModal v-if="author.donateLnAddress" v-model:open="isDonateOpen" title="Podpořit přes Lightning"
+          :ui="{ footer: 'justify-center' }">
+          <UButton size="md" trailing-icon="i-bitcoin-icons-lightning-filled">
+            Podpořit
+          </UButton>
 
-            <template #body>
-              <div class="flex flex-col items-center gap-4">
-                <div class="rounded-lg border border-muted p-3 bg-white">
-                  <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" :alt="`QR ${author?.title || ''}`" class="h-48 w-48" />
-                  <div v-else class="h-48 w-48 flex items-center justify-center text-sm text-muted">
-                    QR se připravuje...
-                  </div>
+          <template #body>
+            <div class="flex flex-col items-center gap-4">
+              <div class="rounded-lg border border-muted p-3 bg-white">
+                <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" :alt="`QR ${author?.title || ''}`" class="h-48 w-48" />
+                <div v-else class="h-48 w-48 flex items-center justify-center text-sm text-muted">
+                  QR se připravuje...
                 </div>
-                <p class="text-sm text-muted text-center">
-                  {{ author?.donateLnAddress }}
-                </p>
-                <UButton v-if="lightningUrl" :to="lightningUrl" target="_blank"
-                  trailing-icon="i-bitcoin-icons-lightning-filled">
-                  Otevřít peněženku
-                </UButton>
               </div>
-            </template>
-          </UModal>
-          <SocialLinks :links="author?.links || []" />
-        </div>
+              <p class="text-sm text-muted text-center">
+                {{ author?.donateLnAddress }}
+              </p>
+              <UButton v-if="lightningUrl" :to="lightningUrl" target="_blank"
+                trailing-icon="i-bitcoin-icons-lightning-filled">
+                Otevřít peněženku
+              </UButton>
+            </div>
+          </template>
+        </UModal>
+        <SocialLinks :links="author?.links || []" />
       </div>
+    </div>
 
-      <ContentRenderer v-if="author.body" :value="author"
-        class="text-sm text-muted prose dark:prose-invert prose-sm mt-1" />
+    <ContentRenderer v-if="author.body" :value="author"
+      class="col-span-2 row-start-2 text-sm text-muted prose dark:prose-invert prose-sm mt-1 sm:col-span-1 sm:col-start-2" />
 
+    <div class="col-span-2 row-start-3 sm:col-span-1 sm:col-start-2">
       <p v-if="articles.length || communities.length" class="mt-3 text-sm text-muted">
         <template v-if="communities.length">
           Organizátor
           <template v-for="(community, index) in communities" :key="community.path">
             <span v-if="index">, </span>
-            <ULink :to="community.path" class="text-primary hover:underline">{{ community.title }}</ULink>
+            <ULink :to="community.path" class="text-default underline decoration-primary underline-offset-2">{{ community.title }}</ULink>
           </template>
         </template>
         <span v-if="articles.length && communities.length">, </span>
@@ -105,7 +106,7 @@ watchEffect(async () => {
         <template #body>
           <ul class="space-y-2">
             <li v-for="article in articles" :key="article.path">
-              <ULink :to="article.path" class="text-primary hover:underline" @click="isArticlesOpen = false">{{ article.title }}</ULink>
+              <ULink :to="article.path" class="text-default underline decoration-primary underline-offset-2" @click="isArticlesOpen = false">{{ article.title }}</ULink>
             </li>
           </ul>
         </template>
