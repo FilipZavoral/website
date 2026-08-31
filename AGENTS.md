@@ -38,12 +38,26 @@
 - Keep collection queries, frontmatter, routes, redirects, and sitemap behavior aligned with `content.config.ts`.
 - Reuse components from `app/components/` before adding new components, and prefer Nuxt UI primitives over custom controls.
 
+## Simplicity and Scope Control
+
+- Start each feature with the smallest responsibility map that can deliver it. Requirements describe outcomes, not required files, layers, or abstractions.
+- Add a new component, helper, type, export, or source file only when it has at least two production consumers, isolates genuinely complex pure logic, or is required by a framework boundary. Tests do not count as a second consumer.
+- Keep one-use logic local by default. Do not split components merely because template sections have different conceptual responsibilities.
+- Keep types at the narrowest boundary. Put a type in `shared/` only when production code on both client and server consumes it.
+- Do not add persisted state, deduplication, schema metadata, compatibility layers, factories, or wrappers unless a requirement or concrete failure mode needs them. Persisted state must have an explicit key owner, invalidation strategy, and retention policy.
+- Test behavior through stable public boundaries. Do not write tests that inspect source or configuration text with regular expressions. Use typecheck, builds, generated output, and browser verification for framework wiring and content placement.
+- For a narrow feature, prefer one focused test file per stable behavior boundary rather than one file per requirement or acceptance criterion.
+- Keep feature work separate from discovered tooling, devcontainer, build, documentation, and deployment-policy fixes. Report those separately and get approval before mixing them into the feature diff.
+- Before final verification, perform a simplification pass: identify one-use files and exports, duplicated identity or validation, unnecessary response envelopes, implementation-coupled tests, and behavior not required by the task.
+
 ## Local Development Workflow
 
 - The devcontainer normally starts the development server automatically. Before starting another server, browse `http://localhost:2103/` with `agent-browser` to check whether it is already running.
-- If no server is running, start `npm run dev` as a background process and wait until Nuxt reports that it is ready. The command removes the temporary Nuxt Content SQLite database before startup, so do not run it again while an existing server is active.
+- If no server is running, start `npm run dev` as a background process and wait until Nuxt reports that it is ready. Do not run it again while an existing server is active.
 - Use the development server by default for debugging. Use a production build when verifying production-only behavior or one of the build-sensitive changes listed below.
 - This application is server-rendered. HTTP requests can help inspect server output, but they do not replace browser verification for hydration, client navigation, responsive layout, or interactive behavior.
+- Before the final response, stop every server, watcher, browser session, test script, Cloudflare `workerd` process, and other background process started during the task. Check for orphaned descendants after stopping their parent processes.
+- Do not stop devcontainer services or a development server that was already running before the task. Track process ownership when starting background work and report any process intentionally left running.
 
 ## Dev Container
 

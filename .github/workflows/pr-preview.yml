@@ -43,12 +43,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Guard: preview build must not contain the prod database_id.
+          # Guard: preview build must not contain production data bindings.
           if grep -q "76d271b2-5335-40ba-81dd-bf7e1ef79522" .output/server/wrangler.json; then
             echo "::error::Preview build leaked the production D1 database_id. Aborting."
             exit 1
           fi
-
+          if grep -qE "PORTAL_EVENT_SNAPSHOTS|5e0aa50166db40ae8414c83614dbae4d" .output/server/wrangler.json; then
+            echo "::error::Preview build leaked the production Portal KV binding. Aborting."
+            exit 1
+          fi
           # Deploy from repo root so wrangler follows Nuxt's redirect config.
           set +e
           npx wrangler deploy --temporary 2>&1 | tee deploy.log
