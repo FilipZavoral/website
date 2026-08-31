@@ -13,3 +13,6 @@ organizers:
   - mara
   - yanas
 ---
+
+::calendar{community="brno"}
+::

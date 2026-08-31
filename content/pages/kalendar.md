@@ -1,4 +1,8 @@
 ---
 title: Kalendář
 ---
-Kalendář test
+
+Přehled nadcházejících událostí bitcoinových komunit v Česku.
+
+::calendar{community="all"}
+::
