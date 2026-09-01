@@ -2,7 +2,31 @@
 title: Kalendář
 ---
 
-Přehled nadcházejících událostí bitcoinových komunit v Česku.
+::u-page-section
+---
+title: Bitcoinové akce po celém Česku
+description: Meetupy, konference a přednášky jednadvacítky ve vašem městě.
+---
 
 ::calendar{community="all"}
+::
+
+::
+
+::u-page-section
+---
+title: Přihlaš se k odběru kalendáře
+description: TODO
+---
+::
+
+::u-page-section
+---
+title: Záznamy přednášek
+description: Nestihnul jsi přijít? Nekteré přednášky jsou nahrávané, ale nespoléhej na to.
+links:
+  - label: Nahrané přednášky
+    to: /blog/zaznamy
+    icon: i-lucide-list-video
+---
 ::
