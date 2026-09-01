@@ -18,6 +18,10 @@ description: Meetupy, konference a přednášky jednadvacítky ve vašem městě
 title: Přihlaš se k odběru kalendáře
 description: TODO
 ---
+
+::subscription-guide{direct-entry}
+::
+
 ::
 
 ::u-page-section
