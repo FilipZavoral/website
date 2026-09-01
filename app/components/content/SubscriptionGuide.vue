@@ -51,6 +51,31 @@ const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.include
   ? 'Celé Česko'
   : selectedCommunities.value.map(community => community.title).join(', '))
 
+const frequencyChoices = [
+  { value: 'created', label: 'při vytvoření události', summary: 'Upozornění při vytvoření události' },
+  { value: 'week-before', label: 'týden předem', summary: 'Upozornění týden předem' },
+  { value: 'day-before', label: 'den předem', summary: 'Upozornění den předem' },
+] as const
+type FrequencyValue = typeof frequencyChoices[number]['value']
+
+const selectedFrequencies = ref<FrequencyValue[]>(['created'])
+const editingFrequencyFor = ref<string | null>(null)
+const frequencySummary = computed(() => frequencyChoices
+  .filter(choice => selectedFrequencies.value.includes(choice.value))
+  .map(choice => choice.summary)
+  .join(', '))
+
+const setFrequency = (value: FrequencyValue, checked: boolean | 'indeterminate') => {
+  if (checked === true) {
+    selectedFrequencies.value = [...new Set([...selectedFrequencies.value, value])]
+    return
+  }
+
+  if (selectedFrequencies.value.length > 1) {
+    selectedFrequencies.value = selectedFrequencies.value.filter(choice => choice !== value)
+  }
+}
+
 const futureMethods = [
   {
     title: 'SMS',
@@ -120,6 +145,23 @@ const retryCommunities = () => refresh()
           <div class="space-y-4">
             <p>{{ method.description }}</p>
             <p class="text-sm text-muted">Náhled budoucího doručování pro vybrané komunity.</p>
+            <div class="flex flex-wrap items-center gap-2">
+              <p class="text-sm text-muted">{{ frequencySummary }}</p>
+              <UButton color="neutral" variant="link" :disabled="!hasSelectedScope" @click="editingFrequencyFor = method.title">
+                Upravit
+              </UButton>
+            </div>
+            <div v-if="editingFrequencyFor === method.title" class="space-y-3 rounded-lg border border-default bg-elevated p-4">
+              <p class="text-sm font-semibold">Kdy byste chtěli dostávat upozornění?</p>
+              <UCheckbox
+                v-for="choice in frequencyChoices"
+                :key="choice.value"
+                :model-value="selectedFrequencies.includes(choice.value)"
+                :label="choice.label"
+                @update:model-value="setFrequency(choice.value, $event)"
+              />
+              <UButton color="neutral" variant="outline" @click="editingFrequencyFor = null">Hotovo</UButton>
+            </div>
           </div>
         </UPageCard>
         <USeparator v-if="index < futureMethods.length - 1" label="nebo" />
