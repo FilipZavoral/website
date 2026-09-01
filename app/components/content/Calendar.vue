@@ -3,6 +3,7 @@ import type { PortalEvent } from '#shared/types/portalEvents'
 import { eventJsonLd, projectCalendarEvents } from '~/utils/calendar'
 
 const { community } = defineProps<{ community: string }>()
+const { $counterscale } = useNuxtApp()
 
 const endpoint = computed(() => `/api/events?community=${encodeURIComponent(community)}`)
 const { data, status, refresh } = await useFetch<PortalEvent[]>(endpoint, {
@@ -11,6 +12,10 @@ const { data, status, refresh } = await useFetch<PortalEvent[]>(endpoint, {
 
 const events = computed(() => projectCalendarEvents(data.value ?? []))
 const isSubscriptionOpen = ref(false)
+
+watch(isSubscriptionOpen, isOpen => {
+  if (isOpen) $counterscale.trackSubscriptionGuide()
+})
 
 const eventLinkHostname = (safeLink: string) => new URL(safeLink).hostname
 
