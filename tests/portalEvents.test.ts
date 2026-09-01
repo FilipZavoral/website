@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   getPortalEvents,
   portalEventCacheKey,
+  PortalEventsError,
   type PortalCommunity,
   type PortalFetch,
   type PortalStorage,
@@ -63,7 +64,9 @@ test('normalizes calendar fields and removes all Portal meetup metadata', async 
   assert.equal(result[0]?.['meetup.portalLink'], undefined)
   assert.deepEqual(result[0]?.tags, [{ name: 'Začátečníci' }, { name: '' }, { locale: 'en' }])
   assert.deepEqual(values.get(portalEventCacheKey('/brno')), {
-    events: result, fetchedAt: now.toISOString(),
+    events: result,
+    fetchedAt: now.toISOString(),
+    validatedFromNonEmptySource: true,
   })
 })
 
@@ -106,6 +109,35 @@ test('a fresh cache avoids Portal while an old cache refresh failure falls back 
 
   ;(values.get(portalEventCacheKey('/brno')) as { fetchedAt: string }).fetchedAt = now.toISOString()
   await getPortalEvents('brno', [brno], storage(values), async () => assert.fail('fresh cache must not fetch'), now)
+})
+
+test('rejects an empty global Portal payload without caching it', async () => {
+  const values = new Map<string, unknown>()
+
+  await assert.rejects(
+    getPortalEvents('brno', [brno], storage(values), fetcher([]), now),
+    (error: unknown) => error instanceof PortalEventsError && error.statusCode === 502,
+  )
+  assert.equal(values.has(portalEventCacheKey('/brno')), false)
+})
+
+test('refreshes an unvalidated empty snapshot but allows zero matches from a non-empty Portal payload', async () => {
+  const values = new Map<string, unknown>([[portalEventCacheKey('/brno'), {
+    events: [],
+    fetchedAt: now.toISOString(),
+  }]])
+  const calls: string[] = []
+  const result = await getPortalEvents('brno', [brno], storage(values), fetcher([
+    event({ 'meetup.portalLink': 'https://portal.example/other' }),
+  ], meetups, calls), now)
+
+  assert.deepEqual(result, [])
+  assert.equal(calls.length, 2)
+  assert.deepEqual(values.get(portalEventCacheKey('/brno')), {
+    events: [],
+    fetchedAt: now.toISOString(),
+    validatedFromNonEmptySource: true,
+  })
 })
 
 test('cold all performs one full fetch pair, populates every community key, and adds community paths and names', async () => {

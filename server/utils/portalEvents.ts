@@ -112,6 +112,7 @@ const parseEvent = (value: unknown): PortalEvent => {
 interface CachedEvents {
   events: PortalEvent[]
   fetchedAt: string
+  validatedFromNonEmptySource: true
 }
 
 /** Validates a cached event before reuse so old or corrupted cache entries force a fresh fetch. */
@@ -133,10 +134,12 @@ const isPortalEvent = (value: unknown): value is PortalEvent => isRecord(value)
 const parseCache = (value: unknown): CachedEvents | null => {
   if (value === null || value === undefined) return null
   if (!isRecord(value) || !Array.isArray(value.events) || !value.events.every(isPortalEvent)
+    || (value.events.length === 0 && value.validatedFromNonEmptySource !== true)
     || typeof value.fetchedAt !== 'string' || Number.isNaN(Date.parse(value.fetchedAt))) return null
   return {
     events: value.events,
     fetchedAt: new Date(value.fetchedAt).toISOString(),
+    validatedFromNonEmptySource: true,
   }
 }
 
@@ -169,7 +172,7 @@ export const refreshPortalMeetups = async (
   if (!Array.isArray(eventPayload) || !Array.isArray(meetupPayload)) {
     throw new PortalEventsError('Portal response is invalid', 502)
   }
-
+  if (eventPayload.length === 0) throw new PortalEventsError('Portal event response is empty', 502)
   const linkByMeetup = new Map<number, string>()
   for (const community of communities) {
     const meetup = meetupPayload.find(row => isRecord(row) && row.id === community.portalMeetupId)
@@ -187,6 +190,7 @@ export const refreshPortalMeetups = async (
     const cache: CachedEvents = {
       events: futureEvents(events, now),
       fetchedAt: now.toISOString(),
+      validatedFromNonEmptySource: true,
     }
     await storage.setItem(portalEventCacheKey(community.path), cache)
   }))
