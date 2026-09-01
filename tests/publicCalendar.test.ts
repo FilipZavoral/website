@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  assertPublicCalendarRequest,
   getPublicCalendarFeed,
   PublicCalendarError,
   type PublicCalendarDependencies,
@@ -60,5 +61,54 @@ test('public calendar output fails closed when it would expose the configured Po
   await assert.rejects(
     getPublicCalendarFeed('brno', dependencies(async () => new Response(`BEGIN:VCALENDAR\r\nX-PORTAL-ID:${brno.portalMeetupId}\r\nEND:VCALENDAR`))),
     (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 502,
+  )
+})
+
+test('malformed, numeric, unknown, and query-extended requests do not fetch Portal', async () => {
+  for (const slug of ['360', 'brno/../../private', 'brno?meetup=360', undefined]) {
+    let calls = 0
+    await assert.rejects(
+      getPublicCalendarFeed(slug, dependencies(async () => {
+        calls += 1
+        return new Response(calendarBody)
+      })),
+      (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 400,
+    )
+    assert.equal(calls, 0)
+  }
+
+  let unknownCalls = 0
+  await assert.rejects(
+    getPublicCalendarFeed('unknown', dependencies(async () => {
+      unknownCalls += 1
+      return new Response(calendarBody)
+    })),
+    (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 404,
+  )
+  assert.equal(unknownCalls, 0)
+
+  assert.throws(
+    () => assertPublicCalendarRequest('brno', { upstream: 'https://attacker.example/calendar' }),
+    (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 400,
+  )
+})
+
+test('Portal transport and non-OK failures return safe local errors without upstream details', async () => {
+  await assert.rejects(
+    getPublicCalendarFeed('brno', dependencies(async () => {
+      throw new Error('upstream session failed for meetup 360')
+    })),
+    (error: unknown) => error instanceof PublicCalendarError
+      && error.statusCode === 503
+      && !error.message.includes('360'),
+  )
+
+  await assert.rejects(
+    getPublicCalendarFeed('brno', dependencies(async () => new Response('secret upstream failure for meetup 360', {
+      status: 500,
+    }))),
+    (error: unknown) => error instanceof PublicCalendarError
+      && error.statusCode === 502
+      && !error.message.includes('360'),
   )
 })

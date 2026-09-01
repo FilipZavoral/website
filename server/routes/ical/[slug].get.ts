@@ -19,14 +19,19 @@ export class PublicCalendarError extends Error {
   }
 }
 
+/** Rejects every public request shape except one configured path-derived slug. */
+export const assertPublicCalendarRequest = (slug: string | undefined, query: Record<string, unknown> = {}) => {
+  if (Object.keys(query).length > 0 || !slug || !publicSlugPattern.test(slug) || /^\d+$/.test(slug)) {
+    throw new PublicCalendarError(400, 'Neplatná adresa kalendáře.')
+  }
+}
+
 /** Resolves one configured slug to an inline, byte-preserving Portal calendar response. */
 export const getPublicCalendarFeed = async (
   slug: string | undefined,
   dependencies: PublicCalendarDependencies,
 ): Promise<Response> => {
-  if (!slug || !publicSlugPattern.test(slug)) {
-    throw new PublicCalendarError(400, 'Neplatná adresa kalendáře.')
-  }
+  assertPublicCalendarRequest(slug)
 
   const community = (await dependencies.communities()).find(item => item.id === slug)
   if (!community) throw new PublicCalendarError(404, 'Kalendář komunity nebyl nalezen.')
@@ -56,12 +61,10 @@ export const getPublicCalendarFeed = async (
 }
 
 export default defineEventHandler(async (event) => {
-  if (Object.keys(getQuery(event)).length > 0) {
-    throw createError({ statusCode: 400, statusMessage: 'Parametry nejsou povoleny.' })
-  }
-
   try {
-    return await getPublicCalendarFeed(getRouterParam(event, 'slug'), {
+    const slug = getRouterParam(event, 'slug')
+    assertPublicCalendarRequest(slug, getQuery(event))
+    return await getPublicCalendarFeed(slug, {
       communities: () => getPortalCommunities(event),
       fetch,
     })
