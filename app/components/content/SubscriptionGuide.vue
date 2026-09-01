@@ -7,15 +7,15 @@ const fakeDoorAlert = 'Tato možnost ještě není připravená, takže jsme nic
 
 // These browser-only convenience values are owned by this guide, retained until
 // the visitor clears them, and never cross a network or analytics boundary.
-const telephone = useLocalStorage('subscription-guide-telephone', '', { initOnMounted: true })
-const email = useLocalStorage('subscription-guide-email', '', { initOnMounted: true })
-
-watch(telephone, value => {
-  if (!value && import.meta.client) window.localStorage.removeItem('subscription-guide-telephone')
+const storedTelephone = useLocalStorage<string | null>('subscription-guide-telephone', null, { initOnMounted: true })
+const storedEmail = useLocalStorage<string | null>('subscription-guide-email', null, { initOnMounted: true })
+const telephone = computed({
+  get: () => storedTelephone.value ?? '',
+  set: value => { storedTelephone.value = value || null },
 })
-
-watch(email, value => {
-  if (!value && import.meta.client) window.localStorage.removeItem('subscription-guide-email')
+const email = computed({
+  get: () => storedEmail.value ?? '',
+  set: value => { storedEmail.value = value || null },
 })
 
 const { data: communities, status, refresh } = await useAsyncData('subscription-guide-communities', () => {
