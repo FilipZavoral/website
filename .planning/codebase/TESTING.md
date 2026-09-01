@@ -1,63 +1,156 @@
 ---
-last_mapped_commit: 61b3357818d020d1df7b707a487756d1a44a3608
+last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 ---
 
-# Testing
+<!-- refreshed: 2026-09-01 -->
+# Testing Patterns
 
-## Current test framework status
+**Analysis Date:** 2026-09-01
 
-No dedicated automated test framework is configured in source at map time.
+## Test Framework
 
-Evidence:
+**Runner:**
+- Node's built-in `node:test` runner, invoked with TypeScript stripping. No Vitest, Jest, Playwright, or Vue Test Utils configuration is detected.
+- Test files: `tests/calendarProjection.test.ts`, `tests/validateContentRoutes.test.ts`, `tests/portalEvents.test.ts`, and `tests/portalWebhook.test.ts`.
 
-- `package.json` contains scripts for `dev`, `build`, `typecheck`, and `prepare`, but no `test` script.
-- No app source files matching `*.test.*`, `*.spec.*`, `tests/`, or `__tests__/` were found outside dependencies/generated directories.
-- No `vitest.config.*`, `playwright.config.*`, Jest config, ESLint config, or Prettier config was found in source during the scan.
+**Assertion Library:**
+- `node:assert/strict`, using `equal`, `deepEqual`, `match`, `ok`, and `notEqual`.
 
-## Available verification commands
+**Run Commands:**
+```bash
+npm test
+node --experimental-strip-types --test tests/*.test.ts
+npm run typecheck
+npm run build
+```
 
-Use npm, not pnpm/yarn.
+`npm test` is defined in `package.json` as `node --experimental-strip-types --test tests/*.test.ts`. No watch or coverage command is configured.
 
-- Type checking: `npm run typecheck`
-  - Runs `nuxt typecheck`.
-  - This is the main lightweight correctness check expected by `AGENTS.md` after code changes.
-- Production build: `npm run build`
-  - Runs `NODE_OPTIONS=--max-old-space-size=4096 nuxt build`.
-  - This exercises Nuxt Content generation, Nitro/Cloudflare output, sitemap setup, route rules, and component compilation.
-- Local dev server: `npm run dev`
-  - Runs `rm -rf .data/content && nuxt dev --port 2103`.
-  - The cleanup step matters because Nuxt Content state under `.data/content` can become stale during content work.
+## Test File Organization
 
-## Manual/runtime verification surfaces
+**Location:**
+- Tests are separated from application code in the root `tests/` directory.
+- Pure client projections, server integration logic, webhook helpers, and route-validation scripts each have a focused test file.
 
-Because the site is content-driven, useful manual smoke checks after changes are:
+**Naming:**
+- Use the implementation subject followed by `.test.ts`, for example `calendarProjection.test.ts` and `portalEvents.test.ts`.
 
-- Home and generic pages resolved through `app/pages/[...slug].vue`, especially content under `content/pages/`.
-- Blog index `/blog`, blog category pages from `content/blog-categories/`, and article pages from `content/blog-articles/`, all routed through `app/pages/blog/[[slug]].vue`.
-- A known missing route, to confirm `app/error.vue` and `app/layouts/wallpaper.vue` still render the branded 404.
-- Navigation menu category population from `app/components/app/NavMenu.vue` and `app/composables/content.ts`.
-- Analytics proxy route `/cntrsclc` behavior only if testing production-like networking; avoid sending real analytics in normal local checks unless intended.
+**Structure:**
+```text
+tests/
+├── calendarProjection.test.ts
+├── portalEvents.test.ts
+├── portalWebhook.test.ts
+└── validateContentRoutes.test.ts
+```
 
-## Suggested future test structure
+## Test Structure
 
-If tests are added later, align them with the architecture:
+**Suite Organization:**
+```ts
+import assert from 'node:assert/strict'
+import test from 'node:test'
 
-- Unit tests for pure-ish content helpers and extension logic:
-  - `shared/blogArticlesTransformer.ts` filename/date extraction.
-  - `shared/contentRedirectsModule.ts` redirect route rule behavior with mocked Nuxt hook context.
-  - `app/composables/content.ts` category filtering in `useArticleCategories`.
-- Component tests for rendering states in:
-  - `app/components/page/BlogArticle.vue`
-  - `app/components/page/BlogCategory.vue`
-  - `app/components/page/Community.vue`
-  - `app/components/app/NavMenu.vue`
-- End-to-end/browser smoke tests for:
-  - `/`
-  - `/blog`
-  - one blog category path
-  - one blog article path
-  - 404 route
+test('projection gives every event its Prague date and sorts by instant then numeric ID', () => {
+  const events = projectCalendarEvents([...])
+  assert.deepEqual(events.map(event => event.id), ['2', '20', '30'])
+})
+```
 
-## Coverage approach today
+**Patterns:**
+- Each behavior is a top-level `test(...)`; nested `describe` suites are not used.
+- Shared fixtures and injected adapters are defined near the top of a file (`brno`, `event`, `storage`, and `fetcher` in `tests/portalEvents.test.ts`).
+- Async tests return an `async` function and use `await`; synchronous tests directly assert pure results.
+- Temporary filesystem fixtures use `try/finally` cleanup (`tests/validateContentRoutes.test.ts`).
+- Assertions verify public outputs and side effects, such as cache entries and fetch call counts, rather than implementation text.
 
-There is no coverage tooling or coverage threshold configured. Current confidence comes from type checking, Nuxt build success, content collection schema validation, and manual/browser verification.
+## Mocking
+
+**Framework:**
+- No mocking library is used. Dependencies are replaced with small typed functions and in-memory adapters.
+
+**Patterns:**
+```ts
+const storage = (values = new Map<string, unknown>()): PortalStorage => ({
+  getItem: async key => values.get(key),
+  setItem: async (key, value) => { values.set(key, value) },
+})
+
+const fetcher = (events: unknown, meetupRows = meetups): PortalFetch => async (url, options) => {
+  assert.deepEqual(options, { timeout: 5_000, retry: 0 })
+  return url.endsWith('/meetups') ? meetupRows : events
+}
+```
+
+**What to Mock:**
+- Mock network and persistence at injected boundaries (`PortalFetch` and `PortalStorage` in `server/utils/portalEvents.ts`).
+- Use temporary directories and child processes when testing the actual route validator (`tests/validateContentRoutes.test.ts`).
+- Supply a fixed `now` date to time-sensitive functions such as `getPortalEvents`.
+
+**What NOT to Mock:**
+- Do not mock pure projections such as `projectCalendarEvents` or `eventJsonLd`.
+- Do not inspect source/configuration text with regular expressions; test stable public behavior and generated/runtime output.
+
+## Fixtures and Factories
+
+**Test Data:**
+```ts
+const event = (overrides: Record<string, unknown> = {}) => ({
+  id: 1,
+  'meetup.name': 'Jednadvacet Brno',
+  title: 'Budoucí meetup',
+  start: '2026-08-31 15:00',
+  end: null,
+  ...overrides,
+})
+```
+
+**Location:**
+- Small fixtures and factories are colocated with the tests that use them (`tests/portalEvents.test.ts`). There is no shared fixture directory.
+- Content-route tests create Markdown fixtures in OS temporary directories and always remove them in `finally` blocks (`tests/validateContentRoutes.test.ts`).
+
+## Coverage
+
+**Requirements:**
+- No coverage tool, threshold, or CI coverage requirement is configured.
+
+**View Coverage:**
+- Not applicable. Use `npm test`, `npm run typecheck`, and `npm run build` for current automated verification.
+
+## Test Types
+
+**Unit Tests:**
+- Pure date/time and JSON-LD projection behavior is covered in `tests/calendarProjection.test.ts`.
+- Portal normalization, cache fallback, sorting, and multi-community behavior are covered in `tests/portalEvents.test.ts`.
+- HMAC signatures, replay windows, and webhook ID extraction are covered in `tests/portalWebhook.test.ts`.
+
+**Integration Tests:**
+- `tests/validateContentRoutes.test.ts` launches `scripts/validate-content-routes.ts` against temporary content trees and checks process status and diagnostics.
+- No test directly boots Nitro, Nuxt Content, or a live external Portal service.
+
+**E2E Tests:**
+- No automated browser/E2E suite is detected. Manual browser verification is required for rendered routes, hydration, responsive UI, and interactive map/calendar behavior.
+
+## Common Patterns
+
+**Async Testing:**
+```ts
+test('fresh cache avoids Portal', async () => {
+  const result = await getPortalEvents('brno', [brno], storage(values), fetcher(...), now)
+  assert.equal(result[0]?.title, 'Cached')
+})
+```
+
+**Error Testing:**
+- Failure paths assert non-zero child-process status and diagnostic text (`tests/validateContentRoutes.test.ts`).
+- Invalid or hostile input is tested through observable safe outputs, such as an unsafe URL being retained as raw `link` but omitted from `safeLink` (`tests/portalEvents.test.ts`).
+- Use `assert.fail` in injected fakes when an unexpected call would invalidate the behavior under test.
+
+**Required verification for changes:**
+- Run `npm test` for test-covered logic.
+- Run `npm run typecheck` after TypeScript or Vue changes.
+- Run `npm run build` for content, routing, module, server/runtime, or configuration changes, then manually verify relevant rendered routes.
+
+---
+
+*Testing analysis: 2026-09-01*

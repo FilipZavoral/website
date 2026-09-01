@@ -1,60 +1,95 @@
 ---
-last_mapped_commit: 61b3357818d020d1df7b707a487756d1a44a3608
+last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
+---
+<!-- refreshed: 2026-09-01 -->
+# External Integrations
+
+**Analysis Date:** 2026-09-01
+
+## APIs & External Services
+
+**Community events:**
+- Portal Einundzwanzig - supplies meetup metadata and meetup events to the public calendar.
+  - SDK/Client: native Nuxt/Nitro `$fetch` passed to `server/utils/portalEvents.ts`.
+  - Auth: public GET requests; change notifications use `NUXT_PORTAL_WEBHOOK_SECRET`.
+  - Endpoints: `https://portal.einundzwanzig.space/api/meetups` and `https://portal.einundzwanzig.space/api/meetup-events`.
+
+**Analytics:**
+- Counterscale - browser page analytics initialized by `app/plugins/counterscale.client.ts`.
+  - SDK/Client: `@counterscale/tracker`.
+  - Auth: site identity is the current hostname; no application secret is configured.
+  - Collection URL: `/cntrsclc`, proxied to `https://analytics.jednadvacet.org/collect` by `nuxt.config.ts` to reduce ad-blocker interference.
+
+**Content editing and source control:**
+- GitHub - Nuxt Studio uses the public `Jednadvacetorg/web` repository and selected branch for content editing (`nuxt.config.ts`).
+  - SDK/Client: `nuxt-studio`.
+  - Auth: managed by the Studio/GitHub integration; no application GitHub token is configured in source.
+
+## Data Storage
+
+**Databases:**
+- SQLite through Nuxt Content - local content indexing/cache at `/tmp/jednadvacet-content.sqlite` (`nuxt.config.ts`).
+  - Connection: local filesystem path, not an environment variable.
+  - Client: `@nuxt/content` server query APIs and its configured SQLite adapter.
+- Cloudflare D1 - production NuxtHub database binding `DB` (`nuxt.config.ts`).
+  - Connection: generated Cloudflare binding; production database ID is configured in `nuxt.config.ts`, while previews intentionally omit it.
+  - Client: `@nuxthub/core` with SQLite/Drizzle dependencies; no application-owned Drizzle schema is present.
+
+**File Storage:**
+- Local static files only for committed images and assets in `public/`; no runtime object-storage integration is configured.
+
+**Caching:**
+- Cloudflare KV namespace `PORTAL_EVENT_SNAPSHOTS` in production - durable per-community Portal event snapshots under the `portal-events:v3` base (`nuxt.config.ts`, `server/utils/portalEvents.ts`).
+- Filesystem storage in development and in-memory storage for PR previews - configured under Nitro `devStorage` and `storage` in `nuxt.config.ts`.
+- Cache policy: snapshots refresh when missing or at least seven days old; stale data may be served if refresh fails but a valid cached value exists (`server/utils/portalEvents.ts`).
+
+## Authentication & Identity
+
+**Auth Provider:**
+- Custom HMAC webhook authentication - `server/api/events/webhook.post.ts` validates `x-portal-event`, `x-portal-timestamp`, and `x-portal-signature` using Web Crypto HMAC-SHA-256 and `NUXT_PORTAL_WEBHOOK_SECRET`.
+- No end-user login, session, OAuth, or application identity provider is detected in `app/`, `server/`, or `nuxt.config.ts`.
+
+## Monitoring & Observability
+
+**Error Tracking:**
+- Not detected. Application and Portal failures are surfaced through Nitro error responses and server `console.error` logging (`server/api/events/index.get.ts`).
+
+**Logs:**
+- Cloudflare Workers invocation logs and observability are enabled in the generated Wrangler configuration (`nuxt.config.ts`).
+- Local/server failures use `console.error`; browser usage analytics is handled by Counterscale (`server/api/events/index.get.ts`, `app/plugins/counterscale.client.ts`).
+
+## CI/CD & Deployment
+
+**Hosting:**
+- Cloudflare Workers production deployment using Nitro preset `cloudflare_module` (`nuxt.config.ts`).
+- GitHub Actions creates temporary isolated Cloudflare PR previews with `PREVIEW_DEPLOY=1` and `npx wrangler deploy --temporary` (`.github/workflows/pr-preview.yml`).
+
+**CI Pipeline:**
+- `.github/workflows/pr-preview.yml` checks out code, installs with `npm ci`, builds with preview bindings, rejects production D1/KV identifiers, deploys, and uploads preview metadata.
+- `.github/workflows/pr-preview-comment.yml` downloads validated metadata and uses `actions/github-script@v7` to create or update a sticky pull-request comment.
+
+## Environment Configuration
+
+**Required env vars:**
+- `NUXT_PORTAL_WEBHOOK_SECRET` - required to accept signed Portal webhook notifications (`nuxt.config.ts`).
+- `PPQ_API_KEY` - optional development-container/tooling credential documented by `.env.example`; it is not read by application code.
+- `NUXT_IMAGE_PROVIDER`, `PREVIEW_DEPLOY`, `STUDIO_BRANCH_NAME`, and `NUXT_BUILD_DIR` - optional deployment/build overrides (`nuxt.config.ts`).
+
+**Secrets location:**
+- Local secrets are expected in the gitignored `.env` file (presence noted without reading contents); CI preview deployment intentionally operates without repository secrets (`.github/workflows/pr-preview.yml`).
+
+## Webhooks & Callbacks
+
+**Incoming:**
+- `POST /api/events/webhook` - receives Portal `meetup.created`, `meetup.updated`, and `meetup.deleted` notifications, verifies the signed raw body, then refreshes the matching KV snapshot (`server/api/events/webhook.post.ts`).
+- The webhook body is treated as a notification only; authoritative data is re-fetched from both Portal APIs (`server/api/events/webhook.post.ts`, `server/utils/portalEvents.ts`).
+
+**Outgoing:**
+- Server-side GET requests to Portal meetup and event APIs with a five-second timeout and no retries (`server/utils/portalEvents.ts`).
+- Browser analytics requests are sent through `/cntrsclc` to Counterscale (`app/plugins/counterscale.client.ts`, `nuxt.config.ts`).
+- Social, event, and author links navigate to third-party sites including Nostr, X, Facebook, Instagram, YouTube, GitHub, WhatsApp, and arbitrary HTTPS URLs according to `app/components/SocialLinks.vue`.
+- Lightning donations use `lightning:` URI links and locally generated QR codes; no payment processor API is called (`app/components/DonateBlock.vue`, `app/components/AuthorBlock.vue`).
+
 ---
 
-# Integrations
-
-## Cloudflare Workers and NuxtHub
-
-- Production is documented as Cloudflare Workers in `README.md` and configured in `nuxt.config.ts` through Nitro `preset: 'cloudflare_module'`.
-- `@nuxthub/core` is registered in `nuxt.config.ts` and `hub: { db: 'sqlite' }` is enabled. No application-owned database schema or server routes were found in this scan; the installed Drizzle/libSQL packages appear available for future Hub DB work.
-- `nuxt.config.ts` aliases `sharp` to `unenv/mock/proxy-cjs` under `nitro.alias` because `sharp` cannot run on Cloudflare Workers and is pulled transitively by Nuxt Studio media tooling.
-- `nuxt.config.ts` also allows Vite dev server hosts with `vite.server.allowedHosts: true`, useful in container/preview environments.
-
-## Analytics: Counterscale
-
-- Client analytics are initialized in `app/plugins/counterscale.client.ts` using `@counterscale/tracker`.
-- The plugin calls `Counterscale.init({ siteId: window.location.hostname, reporterUrl: '/cntrsclc' })`.
-- `nuxt.config.ts` defines `routeRules['/cntrsclc']` as a proxy to `https://analytics.jednadvacet.org/collect`, masking the tracker collect URL to reduce ad-blocker interference.
-- Because the plugin is named `counterscale.client.ts`, it only runs in the browser and safely accesses `window.location.hostname`.
-
-## Nuxt Studio and GitHub-backed editing
-
-- `nuxt-studio` is registered in `nuxt.config.ts`.
-- The `studio` block in `nuxt.config.ts` enables local Studio dev mode and points at GitHub repository `Jednadvacetorg/web`, branch `process.env.STUDIO_BRANCH_NAME || 'master'`, `private: false`.
-- `.github/CODEOWNERS` assigns all files to `@iBobik` and `/content/` to `@Long-BTC-81`, which matters for content-edit review flows.
-
-## Sitemap and SEO integrations
-
-- `@nuxtjs/sitemap` is registered in `nuxt.config.ts`.
-- `site.url` is `https://jednadvacet.org` and `site.name` is `Jednadvacet` in `nuxt.config.ts`.
-- Sitemap excludes `/_studio/**`, `/debug/**`, and `/cntrsclc` in `nuxt.config.ts`.
-- `content.config.ts` imports `defineSitemapSchema` and each content collection schema includes `sitemap: defineSitemapSchema()`.
-- `app/app.vue` sets global Czech language, title template `%s | Jednadvacet`, and a canonical link derived from the current route path.
-
-## Image infrastructure
-
-- `@nuxt/image` is registered in `nuxt.config.ts`.
-- `nuxt.config.ts` configures `image.provider` conditionally for Cloudflare preview deployment contexts, with a Cloudflare base URL of `/`.
-- Static images are organized primarily under `public/app/`, `public/avatars/`, and `public/blog/`.
-- Components such as `app/components/page/BlogArticle.vue`, `app/components/page/Community.vue`, and `app/components/AuthorBlock.vue` use Nuxt image/UI image-capable surfaces for thumbnails and avatars.
-
-## Content as an internal integration surface
-
-- The application integrates heavily with local Markdown content through `@nuxt/content`.
-- Runtime routes resolve content via `queryCollection`:
-  - `app/pages/[...slug].vue` queries `pages` first and then `communities` for non-blog paths.
-  - `app/pages/blog/[[slug]].vue` handles the blog index, then queries `blogCategories`, then `blogArticles`.
-  - `app/composables/content.ts` centralizes reusable category/community queries.
-- `shared/contentRedirectsModule.ts` listens to `content:file:afterParse` and converts frontmatter `redirect_from` arrays into Nuxt route rules with 301 redirects.
-
-## Development container and agent tooling
-
-- `.devcontainer/Dockerfile`, `.devcontainer/docker-compose.yml`, and `.devcontainer/devcontainer.json` define a containerized development environment.
-- The devcontainer installs `agent-browser`, `skills`, `tmux`, and related agent tooling. This is development infrastructure, not runtime application code.
-
-## External services not currently implemented in source
-
-- Auth providers: no user auth implementation or OAuth callback surface was found in app/server source. Nuxt Studio may involve its own auth externally, but app code only contains repository configuration in `nuxt.config.ts`.
-- Email/SMS/comms services: none found.
-- Custom public API routes: no `server/api/` or `server/routes/` source files were found in the whole-repo scan.
+*Integration audit: 2026-09-01*
