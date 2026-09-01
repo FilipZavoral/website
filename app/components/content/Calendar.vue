@@ -10,6 +10,7 @@ const { data, status, refresh } = await useFetch<PortalEvent[]>(endpoint, {
 })
 
 const events = computed(() => projectCalendarEvents(data.value ?? []))
+const isSubscriptionOpen = ref(false)
 
 const eventLinkHostname = (safeLink: string) => new URL(safeLink).hostname
 
@@ -103,5 +104,15 @@ useHead(() => ({
         </template>
       </UAccordion>
     </div>
+
+    <template #footer>
+      <UModal v-model:open="isSubscriptionOpen" title="Sledovat události" scrollable>
+        <UButton>Sledovat události této komunity</UButton>
+
+        <template #body>
+          <SubscriptionGuide v-if="isSubscriptionOpen" :initial-community="community" />
+        </template>
+      </UModal>
+    </template>
   </UPageCard>
 </template>
