@@ -1,7 +1,22 @@
 <script setup lang="ts">
 const { initialCommunity } = defineProps<{ initialCommunity?: string }>()
+const { $counterscale } = useNuxtApp()
 
 const wholeCountryValue = 'all-czech-communities'
+const fakeDoorAlert = 'Tato možnost ještě není připravená, takže jsme nic neaktivovali. Sledujte prosím naše sociální sítě; už teď můžete odebírat kalendář přes iCalendar.'
+
+// These browser-only convenience values are owned by this guide, retained until
+// the visitor clears them, and never cross a network or analytics boundary.
+const telephone = useLocalStorage('subscription-guide-telephone', '', { initOnMounted: true })
+const email = useLocalStorage('subscription-guide-email', '', { initOnMounted: true })
+
+watch(telephone, value => {
+  if (!value && import.meta.client) window.localStorage.removeItem('subscription-guide-telephone')
+})
+
+watch(email, value => {
+  if (!value && import.meta.client) window.localStorage.removeItem('subscription-guide-email')
+})
 
 const { data: communities, status, refresh } = await useAsyncData('subscription-guide-communities', () => {
   return queryCollection('communities')
@@ -47,6 +62,8 @@ const selectedCommunities = computed(() => {
   return configuredCommunities.filter(community => selectedSlugs.has(community.path.replace(/^\//, '')))
 })
 const hasSelectedScope = computed(() => selectedCommunities.value.length > 0)
+const isTelephoneValid = computed(() => /^[+\d][\d\s()-]{5,}$/.test(telephone.value.trim()))
+const isEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
 const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.includes(wholeCountryValue)
   ? 'Celé Česko'
   : selectedCommunities.value.map(community => community.title).join(', '))
@@ -92,6 +109,21 @@ const futureMethods = [
 ] as const
 
 const retryCommunities = () => refresh()
+
+const expressSmsInterest = () => {
+  $counterscale.trackSmsIntent()
+  window.alert(fakeDoorAlert)
+}
+
+const expressEmailInterest = () => {
+  $counterscale.trackEmailIntent()
+  window.alert(fakeDoorAlert)
+}
+
+const expressWebInterest = () => {
+  $counterscale.trackWebIntent()
+  window.alert(fakeDoorAlert)
+}
 </script>
 
 <template>
@@ -163,6 +195,38 @@ const retryCommunities = () => refresh()
               />
               <UButton color="neutral" variant="outline" @click="editingFrequencyFor = null">Hotovo</UButton>
             </div>
+
+            <template v-if="method.title === 'SMS'">
+              <div class="space-y-2">
+                <label for="subscription-telephone" class="text-sm font-semibold">Telefonní číslo</label>
+                <UInput
+                  id="subscription-telephone"
+                  v-model="telephone"
+                  type="tel"
+                  autocomplete="tel"
+                  aria-describedby="subscription-telephone-privacy"
+                />
+                <p id="subscription-telephone-privacy" class="text-sm text-muted">Číslo zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
+              </div>
+              <UButton color="neutral" :disabled="!hasSelectedScope || !isTelephoneValid" @click="expressSmsInterest">Mám zájem o SMS</UButton>
+            </template>
+
+            <template v-else-if="method.title === 'E-mail'">
+              <div class="space-y-2">
+                <label for="subscription-email" class="text-sm font-semibold">E-mail</label>
+                <UInput
+                  id="subscription-email"
+                  v-model="email"
+                  type="email"
+                  autocomplete="email"
+                  aria-describedby="subscription-email-privacy"
+                />
+                <p id="subscription-email-privacy" class="text-sm text-muted">E-mail zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
+              </div>
+              <UButton color="neutral" :disabled="!hasSelectedScope || !isEmailValid" @click="expressEmailInterest">Mám zájem o e-mail</UButton>
+            </template>
+
+            <UButton v-else color="neutral" :disabled="!hasSelectedScope" @click="expressWebInterest">Mám zájem o oznámení ve webu</UButton>
           </div>
         </UPageCard>
         <USeparator v-if="index < futureMethods.length - 1" label="nebo" />
