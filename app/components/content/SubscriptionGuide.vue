@@ -1,5 +1,8 @@
 <script setup lang="ts">
-const { initialCommunity } = defineProps<{ initialCommunity?: string }>()
+const { initialCommunity, directEntry = false } = defineProps<{
+  initialCommunity?: string
+  directEntry?: boolean
+}>()
 const { $counterscale } = useNuxtApp()
 
 const wholeCountryValue = 'all-czech-communities'
@@ -62,6 +65,12 @@ const selectedCommunities = computed(() => {
   return configuredCommunities.filter(community => selectedSlugs.has(community.path.replace(/^\//, '')))
 })
 const hasSelectedScope = computed(() => selectedCommunities.value.length > 0)
+const currentOrigin = ref(useRequestURL().origin)
+const calendarUrls = computed(() => selectedCommunities.value.map(community => ({
+  title: community.title,
+  url: `${currentOrigin.value}/ical/${encodeURIComponent(community.path.replace(/^\//, ''))}`,
+})))
+const copyError = ref<string | null>(null)
 const isTelephoneValid = computed(() => /^[+\d][\d\s()-]{5,}$/.test(telephone.value.trim()))
 const isEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
 const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.includes(wholeCountryValue)
@@ -124,6 +133,22 @@ const expressWebInterest = () => {
   $counterscale.trackWebIntent()
   window.alert(fakeDoorAlert)
 }
+
+const copyCalendarUrl = async (url: string) => {
+  copyError.value = null
+  $counterscale.trackICalendarCopy()
+
+  try {
+    await navigator.clipboard.writeText(url)
+  } catch {
+    copyError.value = 'Adresu se nepodařilo zkopírovat. Označte ji a zkopírujte ručně.'
+  }
+}
+
+onMounted(() => {
+  currentOrigin.value = window.location.origin
+  if (directEntry) $counterscale.trackSubscriptionGuide()
+})
 </script>
 
 <template>
@@ -234,16 +259,74 @@ const expressWebInterest = () => {
 
       <USeparator label="nebo" />
       <UPageCard>
-      <template #header>
-        <div class="flex items-center gap-3">
-          <h3 class="text-xl font-semibold leading-tight">iCalendar</h3>
-          <UBadge color="primary" variant="subtle">Již dostupné</UBadge>
-        </div>
-      </template>
+        <template #header>
+          <div class="flex items-center gap-3">
+            <h3 class="text-xl font-semibold leading-tight">iCalendar</h3>
+            <UBadge color="primary" variant="subtle">Již dostupné</UBadge>
+          </div>
+        </template>
 
-        <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
-        <p v-if="hasSelectedScope" class="mt-2 text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
-        <p v-else class="mt-2 text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
+        <div class="space-y-4">
+          <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
+          <p v-if="hasSelectedScope" class="text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
+          <p v-else class="text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
+
+          <div v-if="hasSelectedScope" class="space-y-4">
+            <div v-for="calendar in calendarUrls" :key="calendar.url" class="space-y-2">
+              <p class="text-sm font-semibold text-highlighted">{{ calendar.title }}</p>
+              <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
+                <UInput
+                  :model-value="calendar.url"
+                  readonly
+                  :aria-label="`Adresa kalendáře pro ${calendar.title}`"
+                  class="min-w-0 flex-1"
+                />
+                <UButton color="primary" class="justify-center" @click="copyCalendarUrl(calendar.url)">Kopírovat</UButton>
+              </div>
+            </div>
+          </div>
+
+          <UAlert
+            v-if="copyError"
+            role="status"
+            aria-live="polite"
+            color="neutral"
+            variant="subtle"
+            :title="copyError"
+          />
+
+          <div class="space-y-2 text-sm text-muted">
+            <p>Přihlášení k odběru přes adresu URL udržuje kalendář aktuální. Stažený soubor .ics je jen jednorázová kopie.</p>
+            <p>Čas obnovení určuje vaše kalendářová aplikace.</p>
+          </div>
+
+          <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
+            <UPopover>
+              <UButton icon="i-lucide-calendar-days" color="neutral" variant="outline" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
+              <template #content>
+                <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevřete Další kalendáře → Přidat další kalendáře → Z adresy URL. Vložte zkopírovanou adresu a potvrďte Přidat kalendář.</p>
+              </template>
+            </UPopover>
+            <UPopover>
+              <UButton icon="i-lucide-apple" color="neutral" variant="outline" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
+              <template #content>
+                <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vložte adresu URL.</p>
+              </template>
+            </UPopover>
+            <UPopover>
+              <UButton icon="i-lucide-mail" color="neutral" variant="outline" class="size-11" aria-label="Outlook" title="Outlook" />
+              <template #content>
+                <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyberte Přidat kalendář → Přihlásit se k odběru z webu, vložte adresu a uložte. Nevolte Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
+              </template>
+            </UPopover>
+            <UPopover>
+              <UButton icon="i-lucide-circle-help" color="neutral" variant="outline" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
+              <template #content>
+                <p class="max-w-sm p-3 text-sm">Hledejte volbu pro přihlášení k odběru kalendáře nebo přidání kalendáře z adresy URL. Podporují ji například Thunderbird a další aplikace s iCalendar URL.</p>
+              </template>
+            </UPopover>
+          </div>
+        </div>
       </UPageCard>
     </div>
   </section>
