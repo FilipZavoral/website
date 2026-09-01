@@ -1,5 +1,22 @@
 const isPreviewDeploy = Boolean(process.env.PREVIEW_DEPLOY)
 
+// Nitro 2's bundled Wrangler type predates traces, but it emits this object unchanged.
+const cloudflareObservability = {
+  enabled: false,
+  head_sampling_rate: 1,
+  logs: {
+    enabled: true,
+    head_sampling_rate: 1,
+    persist: true,
+    invocation_logs: true,
+  },
+  traces: {
+    enabled: true,
+    persist: true,
+    head_sampling_rate: 1,
+  },
+}
+
 export default defineNuxtConfig({
   buildDir: process.env.NUXT_BUILD_DIR || undefined,
 
@@ -116,13 +133,7 @@ export default defineNuxtConfig({
                 id: '5e0aa50166db40ae8414c83614dbae4d',
               },
             ],
-        observability: {
-          enabled: true,
-          logs: {
-            enabled: true,
-            invocation_logs: true,
-          },
-        },
+        observability: cloudflareObservability,
       }
     },
     prerender: {
