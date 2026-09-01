@@ -113,6 +113,7 @@ const retryCommunities = () => refresh()
         clear
         :disabled="status === 'pending' || status === 'error' || !communities"
         :search-input="{ placeholder: 'Hledat komunitu…' }"
+        aria-label="Komunity, které chcete sledovat"
         placeholder="Vyberte komunity"
         class="w-full"
       />
