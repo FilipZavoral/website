@@ -72,9 +72,10 @@ const parseLink = (value: unknown): string | undefined => {
 const parseOptionalText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value : undefined
 
-/** Removes Portal meetup metadata, which is only needed while refreshing the server cache. */
+/** Removes server-only meetup metadata and optional fields that are normalized below. */
 const withoutMeetupMetadata = (event: Record<string, unknown>) => Object.fromEntries(
-  Object.entries(event).filter(([key]) => key !== 'meetup' && key !== 'meetup_id' && key !== 'community' && !key.startsWith('meetup.')),
+  Object.entries(event).filter(([key]) => key !== 'meetup' && key !== 'meetup_id' && key !== 'community'
+    && key !== 'link' && key !== 'safeLink' && key !== 'location' && key !== 'description' && !key.startsWith('meetup.')),
 )
 
 /** Retains complete Portal tag objects while rejecting malformed non-object array entries. */
@@ -93,7 +94,8 @@ const parseEvent = (value: unknown): PortalEvent => {
       ? value['meetup.name']
       : null
   if (!title) throw new PortalEventsError('Portal event title is invalid', 502)
-  const safeLink = parseLink(value.link)
+  const link = typeof value.link === 'string' ? value.link : undefined
+  const safeLink = parseLink(link)
   const location = parseOptionalText(value.location)
   const description = parseOptionalText(value.description)
   return {
@@ -102,6 +104,7 @@ const parseEvent = (value: unknown): PortalEvent => {
     title,
     start: parseUtcWallClock(value.start, 'start'),
     end: value.end === null ? null : parseUtcWallClock(value.end, 'end'),
+    ...(link !== undefined ? { link } : {}),
     ...(safeLink ? { safeLink } : {}),
     ...(location ? { location } : {}),
     ...(description ? { description } : {}),

@@ -70,6 +70,19 @@ test('normalizes calendar fields and removes all Portal meetup metadata', async 
   })
 })
 
+test('omits null optional fields so a freshly written live cache remains readable', async () => {
+  const values = new Map<string, unknown>()
+  const result = await getPortalEvents('brno', [brno], storage(values), fetcher([
+    event({ link: null, safeLink: 'javascript:alert(1)', location: null, description: null }),
+  ]), now)
+
+  assert.equal(result.length, 1)
+  assert.equal(result[0]?.link, undefined)
+  assert.equal(result[0]?.safeLink, undefined)
+  assert.equal(result[0]?.location, undefined)
+  assert.equal(result[0]?.description, undefined)
+})
+
 test('filters by the configured Portal meetup while retaining non-meetup properties', async () => {
   const result = await getPortalEvents('brno', [brno], storage(), fetcher([
     event({ description: 'private', creator: { email: 'private@example.test' }, meetup: { id: 360 }, meetup_id: 360 }),
