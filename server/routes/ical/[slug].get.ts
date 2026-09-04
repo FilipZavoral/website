@@ -30,6 +30,7 @@ export const assertPublicCalendarRequest = (slug: string | undefined, query: Rec
 export const getPublicCalendarFeed = async (
   slug: string | undefined,
   dependencies: PublicCalendarDependencies,
+  asPlainText = false,
 ): Promise<Response> => {
   assertPublicCalendarRequest(slug)
 
@@ -54,8 +55,10 @@ export const getPublicCalendarFeed = async (
   return new Response(bytes, {
     status: 200,
     headers: {
-      'content-type': 'text/calendar; charset=utf-8',
+      'content-type': asPlainText ? 'text/plain; charset=utf-8' : 'text/calendar; charset=utf-8',
       'content-disposition': 'inline',
+      'vary': 'Sec-Fetch-Dest',
+      'x-content-type-options': 'nosniff',
     },
   })
 }
@@ -67,7 +70,7 @@ export default defineEventHandler(async (event) => {
     return await getPublicCalendarFeed(slug, {
       communities: () => getPortalCommunities(event),
       fetch,
-    })
+    }, getHeader(event, 'sec-fetch-dest') === 'document')
   } catch (error) {
     const statusCode = error instanceof PublicCalendarError ? error.statusCode : 503
     const statusMessage = error instanceof PublicCalendarError

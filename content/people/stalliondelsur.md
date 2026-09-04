@@ -1,6 +1,6 @@
 ---
 title: Jan Stallion Marvan
-avatar: /avatars/stalliondelsur.jpg
+avatar: /images/avatars/stalliondelsur.jpg
 donateLnAddress: stallion@walletofsatoshi.com
 links:
   - npub187ygerlkw7sth7dj5wmvhsv4gf2tx3j0tfpecsx9tdcu0yfyz60sn24sdn

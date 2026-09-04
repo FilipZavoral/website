@@ -61,7 +61,7 @@ Generated or local-only directories include `node_modules/`, `.nuxt/`, `.output/
 
 **`public/`:**
 - Purpose: Files served without content collection processing.
-- Contains: `public/app/`, `public/blog/`, `public/people/`, and `public/partners/` assets.
+- Contains: static assets under `public/images/`.
 - Reference assets with root-relative URLs; keep content media naming aligned with `README.md`.
 
 ## Key File Locations

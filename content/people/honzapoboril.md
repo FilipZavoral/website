@@ -1,6 +1,6 @@
 ---
 title: Honza Pobořil
-avatar: /avatars/honzapoboril.jpg
+avatar: /images/avatars/honzapoboril.jpg
 links:
   - https://honza.poboril.cz
   - https://x.com/janpoboril

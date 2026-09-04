@@ -5,7 +5,7 @@ import type { PortalEvent } from '../../shared/types/portalEvents.ts'
  * Provides the server-only Portal integration: validation, normalization, durable caching, and refreshes.
  * Keeping raw Portal data here prevents unvalidated upstream fields from reaching browser clients.
  */
-const portalEventsUrl = 'https://portal.einundzwanzig.space/api/meetup-events'
+const portalEventsUrl = 'https://portal.einundzwanzig.space/api/meetup-events?locale=cs'
 const portalMeetupsUrl = 'https://portal.einundzwanzig.space/api/meetups'
 const maxCacheAgeMs = 7 * 24 * 60 * 60 * 1_000
 const wallClockPattern = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/
@@ -36,7 +36,7 @@ export class PortalEventsError extends Error {
 }
 
 /** Returns the durable per-community storage key from its public path. */
-export const portalEventCacheKey = (path: string) => `community:${path.replace(/^\/+/, '')}:events`
+export const portalEventCacheKey = (path: string) => `community:${path.replace(/^\/+/, '')}:events-v2`
 
 /** Narrows untrusted Portal and cache payload values to non-array objects. */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -72,10 +72,20 @@ const parseLink = (value: unknown): string | undefined => {
 const parseOptionalText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value : undefined
 
+/** Returns a numeric coordinate in its original decimal form only when it is within geographic bounds. */
+const parseCoordinate = (value: unknown, minimum: number, maximum: number): string | undefined => {
+  const coordinate = parseOptionalText(value)
+  if (!coordinate) return undefined
+  const numeric = Number(coordinate)
+  return Number.isFinite(numeric) && numeric >= minimum && numeric <= maximum ? coordinate : undefined
+}
+
 /** Removes server-only meetup metadata and optional fields that are normalized below. */
 const withoutMeetupMetadata = (event: Record<string, unknown>) => Object.fromEntries(
   Object.entries(event).filter(([key]) => key !== 'meetup' && key !== 'meetup_id' && key !== 'community'
-    && key !== 'link' && key !== 'safeLink' && key !== 'location' && key !== 'description' && !key.startsWith('meetup.')),
+    && key !== 'link' && key !== 'safeLink' && key !== 'location' && key !== 'description'
+    && !['osm_type', 'osm_id', 'osm_name', 'osm_address', 'osm_lat', 'osm_lon'].includes(key)
+    && !key.startsWith('meetup.')),
 )
 
 /** Retains complete Portal tag objects while rejecting malformed non-object array entries. */
@@ -97,6 +107,12 @@ const parseEvent = (value: unknown): PortalEvent => {
   const link = typeof value.link === 'string' ? value.link : undefined
   const safeLink = parseLink(link)
   const location = parseOptionalText(value.location)
+  const osmType = parseOptionalText(value.osm_type)
+  const osmId = Number.isSafeInteger(value.osm_id) && (value.osm_id as number) >= 0 ? value.osm_id as number : undefined
+  const osmName = parseOptionalText(value.osm_name)
+  const osmAddress = parseOptionalText(value.osm_address)
+  const osmLat = parseCoordinate(value.osm_lat, -90, 90)
+  const osmLon = parseCoordinate(value.osm_lon, -180, 180)
   const description = parseOptionalText(value.description)
   return {
     ...withoutMeetupMetadata(value),
@@ -107,6 +123,12 @@ const parseEvent = (value: unknown): PortalEvent => {
     ...(link !== undefined ? { link } : {}),
     ...(safeLink ? { safeLink } : {}),
     ...(location ? { location } : {}),
+    ...(osmType ? { osm_type: osmType } : {}),
+    ...(osmId !== undefined ? { osm_id: osmId } : {}),
+    ...(osmName ? { osm_name: osmName } : {}),
+    ...(osmAddress ? { osm_address: osmAddress } : {}),
+    ...(osmLat ? { osm_lat: osmLat } : {}),
+    ...(osmLon ? { osm_lon: osmLon } : {}),
     ...(description ? { description } : {}),
     tags: parseTags(value.tags),
   }
@@ -128,6 +150,12 @@ const isPortalEvent = (value: unknown): value is PortalEvent => isRecord(value)
   && (value.link === undefined || typeof value.link === 'string')
   && (value.safeLink === undefined || typeof value.safeLink === 'string')
   && (value.location === undefined || typeof value.location === 'string')
+  && (value.osm_type === undefined || typeof value.osm_type === 'string')
+  && (value.osm_id === undefined || (typeof value.osm_id === 'number' && Number.isSafeInteger(value.osm_id) && value.osm_id >= 0))
+  && (value.osm_name === undefined || typeof value.osm_name === 'string')
+  && (value.osm_address === undefined || typeof value.osm_address === 'string')
+  && (value.osm_lat === undefined || parseCoordinate(value.osm_lat, -90, 90) === value.osm_lat)
+  && (value.osm_lon === undefined || parseCoordinate(value.osm_lon, -180, 180) === value.osm_lon)
   && (value.description === undefined || typeof value.description === 'string')
   && Array.isArray(value.tags)
   && value.tags.every(isRecord)

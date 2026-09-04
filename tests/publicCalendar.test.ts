@@ -52,8 +52,18 @@ test('configured slug returns the exact upstream calendar body with fresh inline
   assert.equal(response.status, 200)
   assert.equal(response.headers.get('content-type'), 'text/calendar; charset=utf-8')
   assert.equal(response.headers.get('content-disposition'), 'inline')
+  assert.equal(response.headers.get('vary'), 'Sec-Fetch-Dest')
+  assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
   assert.equal(response.headers.get('set-cookie'), null)
   assert.equal(response.headers.get('x-portal-debug'), null)
+  assert.equal(await response.text(), calendarBody)
+})
+
+test('browser document navigations receive the feed as readable plain text', async () => {
+  const response = await getPublicCalendarFeed('brno', dependencies(async () => new Response(calendarBody)), true)
+
+  assert.equal(response.headers.get('content-type'), 'text/plain; charset=utf-8')
+  assert.equal(response.headers.get('content-disposition'), 'inline')
   assert.equal(await response.text(), calendarBody)
 })
 

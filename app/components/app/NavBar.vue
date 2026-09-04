@@ -13,7 +13,7 @@
     </template>
 
     <template #body>
-      <AppNavMenu orientation="vertical" :ui="{ link: 'py-3 text-xl justify-center' }" />
+      <AppNavMenu orientation="vertical" />
       <AppSocialMenu class="justify-center mt-14" />
     </template>
   </UHeader>

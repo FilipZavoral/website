@@ -1,5 +1,7 @@
 const isPreviewDeploy = Boolean(process.env.PREVIEW_DEPLOY)
 
+const studioIconLibraries = ['bitcoin-icons', 'lucide', 'pinhead', 'simple-icons', 'streamline']
+
 // Nitro 2's bundled Wrangler type predates traces, but it emits this object unchanged.
 const cloudflareObservability = {
   enabled: false,
@@ -78,6 +80,18 @@ export default defineNuxtConfig({
     },
   },
 
+  icon: {
+    // Bundle statically discovered icons so production never fetches Iconify data.
+    provider: 'none',
+    clientBundle: {
+      scan: {
+        globInclude: ['app/**/*.{vue,ts}', 'content/**/*.{md,yml,yaml}', 'shared/data/navigation.ts'],
+        globExclude: ['node_modules'],
+      },
+      sizeLimitKb: 256,
+    },
+  },
+
   nitro: {
     devStorage: {
       portalEvents: {
@@ -151,6 +165,9 @@ export default defineNuxtConfig({
 
   studio: {
     dev: true,
+    editor: {
+      iconLibraries: studioIconLibraries,
+    },
     repository: {
       provider: 'github',
       owner: 'Jednadvacetorg',

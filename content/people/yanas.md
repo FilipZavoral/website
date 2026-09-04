@@ -1,6 +1,6 @@
 ---
 title: Yanas
-avatar: /avatars/yanas.jpeg
+avatar: /images/avatars/yanas.jpeg
 links:
   - https://yanas.cz
   - https://github.com/yanascz

@@ -16,7 +16,7 @@ description: Meetupy, konference a přednášky jednadvacítky ve vašem městě
 ::u-page-section
 ---
 title: Přihlaš se k odběru kalendáře
-description: TODO
+description: Email, SMS, notifikace nebo přímo do tvého kalendáře — vyber si co ti vyhovuje.
 ---
 
 ::subscription-guide{direct-entry}

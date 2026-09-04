@@ -17,14 +17,18 @@ Projekt plně využívá konvence frameworku Nuxt. Pro pochopení struktury slo�
 
 - Články se ukládají do `content/blog-articles/` s názvy souborů ve formátu `YYYYMMDD.nazev-clanku.md`
 - Články se píšou v jazyce zvaném Markdown, [zde je jednoduchý tutoriál](https://www.markdowntutorial.com/)
-- Obrázky se ukládají do `public/blog/` s názvy souborů ve formátu `nazev-clanku-obrazek.jpg`
+- Obrázky se ukládají do `public/images/blog/` s názvy souborů ve formátu `nazev-clanku-obrazek.jpg`
 - V článku se zobruje datum zveřejnění článku, to se nastaví v názvu souboru. (Tedy musí být aktualizováno před schválením v pull requestu.)
 
 ### People
 
 - Profily autorů článků, organizátorů apod. se ukládají do `content/people/` s názvy souborů ve formátu `jmeno.md`
-- Avatary se ukládají do `public/people/` s názvy souborů ve formátu `jmeno.jpg` (čtverec min 512px)
+- Avatary se ukládají do `public/images/avatars/` s názvy souborů ve formátu `jmeno.jpg` (čtverec min 512px)
 - Odkaz na Nostr by měl začínat na `nprofile...` nebo `npub...` (tedy ne URL)
+
+### Integrace kalendáře s Portalem
+
+Kalendář načítá události z `https://portal.einundzwanzig.space/`, kde je vypisují jejich organizátoři. Aby propojení fungovalo, tak je potřeba v `content/communities/mesto.md` vyplnit `portal_meetup_id` (po vytvoření meetupu v Portálu).
 
 ## Předpřipravený devcontainer
 

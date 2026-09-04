@@ -10,6 +10,7 @@ export type CalendarEventRow = PortalEvent & {
   startTime: string
   endTime: string | null
   tagNames: string[]
+  osmMapUri?: string
 }
 
 const weekdayLabel = new Intl.DateTimeFormat('cs-CZ', {
@@ -48,10 +49,18 @@ const partsRecord = (formatter: Intl.DateTimeFormat, instant: Date) =>
 const byStartThenId = (a: PortalEvent, b: PortalEvent) =>
   Date.parse(a.start) - Date.parse(b.start) || Number(a.id) - Number(b.id)
 
+/** Builds a geo URI that native map applications can use to open an OSM-selected venue. */
+export const osmMapUri = (event: Pick<PortalEvent, 'osm_name' | 'osm_lat' | 'osm_lon'>): string | undefined => {
+  if (!event.osm_name || !event.osm_lat || !event.osm_lon) return undefined
+  const query = `${event.osm_lat},${event.osm_lon}(${event.osm_name})`
+  return `geo:${event.osm_lat},${event.osm_lon}?q=${encodeURIComponent(query)}`
+}
+
 /** Adds Czech-local date and time labels without mutating the API event array. */
 export const projectCalendarEvents = (events: readonly PortalEvent[]): CalendarEventRow[] =>
   events.slice().sort(byStartThenId).map((event) => {
     const instant = new Date(event.start)
+    const mapUri = osmMapUri(event)
     return {
       ...event,
       weekdayLabel: weekdayLabel.format(instant).slice(0, 2),
@@ -59,6 +68,7 @@ export const projectCalendarEvents = (events: readonly PortalEvent[]): CalendarE
       startTime: timeLabel.format(instant),
       endTime: event.end ? timeLabel.format(new Date(event.end)) : null,
       tagNames: event.tags.flatMap(tag => typeof tag.name === 'string' && tag.name.trim() ? [tag.name] : []),
+      ...(mapUri ? { osmMapUri: mapUri } : {}),
     }
   })
 

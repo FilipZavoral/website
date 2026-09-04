@@ -38,31 +38,42 @@ const fetcher = (events: unknown, meetupRows: unknown = meetups, calls: string[]
 
 test('normalizes calendar fields and removes all Portal meetup metadata', async () => {
   const values = new Map<string, unknown>()
+  const calls: string[] = []
   const result = await getPortalEvents('brno', [brno], storage(values), fetcher([
     event({
       start: '2026-08-31 15:00',
       end: '2026-08-31 19:00',
       link: 'mailto:meetup@example.test?subject=Brno',
       location: 'Brno',
+      osm_type: 'node',
+      osm_id: 123,
+      osm_name: 'Bitcoin Coffee',
+      osm_address: 'Brno, Česko',
+      osm_lat: '49.195278',
+      osm_lon: '16.608333',
       description: 'Popis **události**',
       tags: [{ name: 'Začátečníci' }, { name: '' }, { locale: 'en' }],
       meetup: { id: 360 },
       meetup_id: 360,
       custom: 'retained',
     }),
-  ]), now)
+  ], meetups, calls), now)
 
   assert.equal(result[0]?.id, '1')
   assert.equal(result[0]?.start, '2026-08-31T15:00:00.000Z')
   assert.equal(result[0]?.end, '2026-08-31T19:00:00.000Z')
   assert.equal(result[0]?.link, 'mailto:meetup@example.test?subject=Brno')
   assert.equal(result[0]?.safeLink, 'mailto:meetup@example.test?subject=Brno')
+  assert.equal(result[0]?.osm_name, 'Bitcoin Coffee')
+  assert.equal(result[0]?.osm_lat, '49.195278')
+  assert.equal(result[0]?.osm_lon, '16.608333')
   assert.equal(result[0]?.custom, 'retained')
   assert.equal(result[0]?.meetup, undefined)
   assert.equal(result[0]?.meetup_id, undefined)
   assert.equal(result[0]?.['meetup.name'], undefined)
   assert.equal(result[0]?.['meetup.portalLink'], undefined)
   assert.deepEqual(result[0]?.tags, [{ name: 'Začátečníci' }, { name: '' }, { locale: 'en' }])
+  assert.ok(calls.includes('https://portal.einundzwanzig.space/api/meetup-events?locale=cs'))
   assert.deepEqual(values.get(portalEventCacheKey('/brno')), {
     events: result,
     fetchedAt: now.toISOString(),
@@ -73,13 +84,16 @@ test('normalizes calendar fields and removes all Portal meetup metadata', async 
 test('omits null optional fields so a freshly written live cache remains readable', async () => {
   const values = new Map<string, unknown>()
   const result = await getPortalEvents('brno', [brno], storage(values), fetcher([
-    event({ link: null, safeLink: 'javascript:alert(1)', location: null, description: null }),
+    event({ link: null, safeLink: 'javascript:alert(1)', location: null, osm_name: null, osm_lat: '91', osm_lon: 'invalid', description: null }),
   ]), now)
 
   assert.equal(result.length, 1)
   assert.equal(result[0]?.link, undefined)
   assert.equal(result[0]?.safeLink, undefined)
   assert.equal(result[0]?.location, undefined)
+  assert.equal(result[0]?.osm_name, undefined)
+  assert.equal(result[0]?.osm_lat, undefined)
+  assert.equal(result[0]?.osm_lon, undefined)
   assert.equal(result[0]?.description, undefined)
 })
 
