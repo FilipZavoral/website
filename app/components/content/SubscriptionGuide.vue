@@ -37,13 +37,10 @@ const hasInitializedScope = ref(false)
 
 const normalizeScope = (scope: readonly string[]) => {
   const availableSlugs = new Set(communityOptions.value.map(option => option.value))
-  const validScope = scope.filter(value => availableSlugs.has(value))
-  return validScope.includes(wholeCountryValue)
-    ? [wholeCountryValue]
-    : [...new Set(validScope)]
+  return [...new Set(scope.filter(value => availableSlugs.has(value)))]
 }
 
-watch([communities, selectedCommunitySlugs], ([loadedCommunities, scope]) => {
+watch(communities, (loadedCommunities) => {
   if (!loadedCommunities) return
 
   if (!hasInitializedScope.value) {
@@ -51,12 +48,27 @@ watch([communities, selectedCommunitySlugs], ([loadedCommunities, scope]) => {
       ? [initialCommunity]
       : [wholeCountryValue]
     hasInitializedScope.value = true
-    return
   }
-
-  const normalizedScope = normalizeScope(scope)
-  if (normalizedScope.join() !== scope.join()) selectedCommunitySlugs.value = normalizedScope
 }, { immediate: true })
+
+const copiedCalendarUrl = ref<string | null>(null)
+const copyError = ref<string | null>(null)
+
+const updateCommunityScope = (scope: string[]) => {
+  const validScope = normalizeScope(scope)
+  const selectedWholeCountry = scope.includes(wholeCountryValue)
+  const hadWholeCountry = selectedCommunitySlugs.value.includes(wholeCountryValue)
+
+  selectedCommunitySlugs.value = selectedWholeCountry && !hadWholeCountry
+    ? [wholeCountryValue]
+    : hadWholeCountry
+      ? validScope.filter(value => value !== wholeCountryValue)
+      : selectedWholeCountry
+        ? [wholeCountryValue]
+        : validScope
+  copiedCalendarUrl.value = null
+  copyError.value = null
+}
 
 const selectedCommunities = computed(() => {
   const configuredCommunities = communities.value ?? []
@@ -70,9 +82,8 @@ const calendarUrls = computed(() => selectedCommunities.value.map(community => (
   title: community.title,
   url: `${currentOrigin.value}/ical/${encodeURIComponent(community.path.replace(/^\//, ''))}`,
 })))
-const copyError = ref<string | null>(null)
-const isTelephoneValid = computed(() => /^[+\d][\d\s()-]{5,}$/.test(telephone.value.trim()))
-const isEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim()))
+const hasTelephone = computed(() => telephone.value.trim().length > 0)
+const hasEmail = computed(() => email.value.trim().length > 0)
 const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.includes(wholeCountryValue)
   ? 'Celé Česko'
   : selectedCommunities.value.map(community => community.title).join(', '))
@@ -85,7 +96,7 @@ const frequencyChoices = [
 type FrequencyValue = typeof frequencyChoices[number]['value']
 
 const selectedFrequencies = ref<FrequencyValue[]>(['created'])
-const editingFrequencyFor = ref<string | null>(null)
+const isEditingFrequency = ref(false)
 const frequencySummary = computed(() => frequencyChoices
   .filter(choice => selectedFrequencies.value.includes(choice.value))
   .map(choice => choice.summary)
@@ -105,15 +116,15 @@ const setFrequency = (value: FrequencyValue, checked: boolean | 'indeterminate')
 const futureMethods = [
   {
     title: 'SMS',
-    description: 'Až bude služba připravená, pošleme SMS podle zvoleného nastavení.',
+    description: 'Upozornění na vybrané události dostanete jako SMS.',
   },
   {
     title: 'E-mail',
-    description: 'Až bude služba připravená, e-mail může obsahovat událost, kterou si přidáte do vlastního kalendáře.',
+    description: 'Upozornění e-mailem může obsahovat událost, kterou si přidáte do vlastního kalendáře.',
   },
   {
     title: 'Oznámení ve webu',
-    description: 'Až bude služba připravená, budete si moci zapnout oznámení v tomto prohlížeči.',
+    description: 'Upozornění dostanete přímo v tomto prohlížeči.',
   },
 ] as const
 
@@ -140,7 +151,9 @@ const copyCalendarUrl = async (url: string) => {
 
   try {
     await navigator.clipboard.writeText(url)
+    copiedCalendarUrl.value = url
   } catch {
+    copiedCalendarUrl.value = null
     copyError.value = 'Adresu se nepodařilo zkopírovat. Označte ji a zkopírujte ručně.'
   }
 }
@@ -152,18 +165,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="mx-auto max-w-[720px] space-y-8" aria-labelledby="subscription-guide-title">
-    <div class="space-y-2">
+  <section
+    class="mx-auto max-w-[720px] space-y-8"
+    :aria-labelledby="directEntry ? 'subscription-guide-title' : undefined"
+  >
+    <div v-if="directEntry" class="space-y-2">
       <h2 id="subscription-guide-title" class="text-[28px] font-semibold leading-tight">Sledovat události</h2>
-      <p>Vyberte, které komunity chcete sledovat. Nastavení platí pro všechny možnosti níže.</p>
-      <p class="text-sm text-muted">iCalendar je dostupný hned. SMS, e-mail a oznámení ve webu zatím jen připravujeme.</p>
+      <p>Vyberte si komunity a způsob, jakým chcete jejich události sledovat.</p>
     </div>
 
     <div class="space-y-2">
       <label for="subscription-community-scope" class="text-sm font-semibold">Komunity, které chcete sledovat</label>
       <USelectMenu
         id="subscription-community-scope"
-        v-model="selectedCommunitySlugs"
+        :model-value="selectedCommunitySlugs"
         :items="communityOptions"
         value-key="value"
         multiple
@@ -173,6 +188,7 @@ onMounted(() => {
         aria-label="Komunity, které chcete sledovat"
         placeholder="Vyberte komunity"
         class="w-full"
+        @update:model-value="updateCommunityScope"
       />
       <p v-if="status === 'pending'" role="status" class="text-sm text-muted">Načítáme komunity…</p>
       <div v-else-if="status === 'error' || !communities" class="space-y-3" role="alert">
@@ -185,6 +201,32 @@ onMounted(() => {
       </p>
     </div>
 
+    <div v-if="status === 'success' && communities?.length" class="space-y-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <p class="text-sm font-semibold">Frekvence upozornění</p>
+        <span class="text-sm text-muted">{{ frequencySummary }}</span>
+        <UButton
+          color="neutral"
+          variant="link"
+          :disabled="!hasSelectedScope"
+          @click="isEditingFrequency = true"
+        >
+          Upravit
+        </UButton>
+      </div>
+      <div v-if="isEditingFrequency" class="space-y-3 rounded-lg border border-default bg-elevated p-4">
+        <p class="text-sm font-semibold">Kdy chcete dostávat upozornění?</p>
+        <UCheckbox
+          v-for="choice in frequencyChoices"
+          :key="choice.value"
+          :model-value="selectedFrequencies.includes(choice.value)"
+          :label="choice.label"
+          @update:model-value="setFrequency(choice.value, $event)"
+        />
+        <UButton color="neutral" variant="outline" @click="isEditingFrequency = false">Hotovo</UButton>
+      </div>
+    </div>
+
     <div v-if="status === 'success' && communities?.length" class="space-y-4">
       <div v-if="!hasSelectedScope" class="rounded-lg border border-default bg-elevated p-4" role="status">
         <h3 class="text-xl font-semibold leading-tight">Vyberte alespoň jednu komunitu</h3>
@@ -194,65 +236,46 @@ onMounted(() => {
       <template v-for="(method, index) in futureMethods" :key="method.title">
         <UPageCard>
           <template #header>
-            <div class="flex flex-wrap items-center gap-3">
-              <h3 class="text-xl font-semibold leading-tight">{{ method.title }}</h3>
-              <UBadge color="neutral" variant="subtle">Připravujeme</UBadge>
-            </div>
+            <h3 class="text-xl font-semibold leading-tight">{{ method.title }}</h3>
           </template>
 
-          <div class="space-y-4">
-            <p>{{ method.description }}</p>
-            <p class="text-sm text-muted">Náhled budoucího doručování pro vybrané komunity.</p>
-            <div class="flex flex-wrap items-center gap-2">
-              <p class="text-sm text-muted">{{ frequencySummary }}</p>
-              <UButton color="neutral" variant="link" :disabled="!hasSelectedScope" @click="editingFrequencyFor = method.title">
-                Upravit
-              </UButton>
+          <template #body>
+            <div class="space-y-4">
+              <p>{{ method.description }}</p>
+
+              <template v-if="method.title === 'SMS'">
+                <div class="space-y-2">
+                  <label for="subscription-telephone" class="text-sm font-semibold">Telefonní číslo</label>
+                  <UInput
+                    id="subscription-telephone"
+                    v-model="telephone"
+                    type="tel"
+                    autocomplete="tel"
+                    aria-describedby="subscription-telephone-privacy"
+                  />
+                  <p id="subscription-telephone-privacy" class="text-sm text-muted">Číslo zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
+                </div>
+                <UButton color="neutral" :disabled="!hasSelectedScope || !hasTelephone" @click="expressSmsInterest">Mám zájem o SMS</UButton>
+              </template>
+
+              <template v-else-if="method.title === 'E-mail'">
+                <div class="space-y-2">
+                  <label for="subscription-email" class="text-sm font-semibold">E-mail</label>
+                  <UInput
+                    id="subscription-email"
+                    v-model="email"
+                    type="email"
+                    autocomplete="email"
+                    aria-describedby="subscription-email-privacy"
+                  />
+                  <p id="subscription-email-privacy" class="text-sm text-muted">E-mail zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
+                </div>
+                <UButton color="neutral" :disabled="!hasSelectedScope || !hasEmail" @click="expressEmailInterest">Mám zájem o e-mail</UButton>
+              </template>
+
+              <UButton v-else color="neutral" :disabled="!hasSelectedScope" @click="expressWebInterest">Mám zájem o oznámení ve webu</UButton>
             </div>
-            <div v-if="editingFrequencyFor === method.title" class="space-y-3 rounded-lg border border-default bg-elevated p-4">
-              <p class="text-sm font-semibold">Kdy byste chtěli dostávat upozornění?</p>
-              <UCheckbox
-                v-for="choice in frequencyChoices"
-                :key="choice.value"
-                :model-value="selectedFrequencies.includes(choice.value)"
-                :label="choice.label"
-                @update:model-value="setFrequency(choice.value, $event)"
-              />
-              <UButton color="neutral" variant="outline" @click="editingFrequencyFor = null">Hotovo</UButton>
-            </div>
-
-            <template v-if="method.title === 'SMS'">
-              <div class="space-y-2">
-                <label for="subscription-telephone" class="text-sm font-semibold">Telefonní číslo</label>
-                <UInput
-                  id="subscription-telephone"
-                  v-model="telephone"
-                  type="tel"
-                  autocomplete="tel"
-                  aria-describedby="subscription-telephone-privacy"
-                />
-                <p id="subscription-telephone-privacy" class="text-sm text-muted">Číslo zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
-              </div>
-              <UButton color="neutral" :disabled="!hasSelectedScope || !isTelephoneValid" @click="expressSmsInterest">Mám zájem o SMS</UButton>
-            </template>
-
-            <template v-else-if="method.title === 'E-mail'">
-              <div class="space-y-2">
-                <label for="subscription-email" class="text-sm font-semibold">E-mail</label>
-                <UInput
-                  id="subscription-email"
-                  v-model="email"
-                  type="email"
-                  autocomplete="email"
-                  aria-describedby="subscription-email-privacy"
-                />
-                <p id="subscription-email-privacy" class="text-sm text-muted">E-mail zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
-              </div>
-              <UButton color="neutral" :disabled="!hasSelectedScope || !isEmailValid" @click="expressEmailInterest">Mám zájem o e-mail</UButton>
-            </template>
-
-            <UButton v-else color="neutral" :disabled="!hasSelectedScope" @click="expressWebInterest">Mám zájem o oznámení ve webu</UButton>
-          </div>
+          </template>
         </UPageCard>
         <USeparator v-if="index < futureMethods.length - 1" label="nebo" />
       </template>
@@ -260,28 +283,32 @@ onMounted(() => {
       <USeparator label="nebo" />
       <UPageCard>
         <template #header>
-          <div class="flex items-center gap-3">
-            <h3 class="text-xl font-semibold leading-tight">iCalendar</h3>
-            <UBadge color="primary" variant="subtle">Již dostupné</UBadge>
-          </div>
+          <h3 class="text-xl font-semibold leading-tight">Kalendářový feed</h3>
         </template>
 
-        <div class="space-y-4">
-          <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
+        <template #body>
+          <div class="min-w-0 space-y-4">
+            <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
           <p v-if="hasSelectedScope" class="text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
           <p v-else class="text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
 
           <div v-if="hasSelectedScope" class="space-y-4">
             <div v-for="calendar in calendarUrls" :key="calendar.url" class="space-y-2">
               <p class="text-sm font-semibold text-highlighted">{{ calendar.title }}</p>
-              <div class="flex min-w-0 flex-col gap-2 sm:flex-row">
-                <UInput
-                  :model-value="calendar.url"
-                  readonly
+              <div class="flex min-w-0">
+                <code
+                  tabindex="0"
                   :aria-label="`Adresa kalendáře pro ${calendar.title}`"
-                  class="min-w-0 flex-1"
-                />
-                <UButton color="primary" class="justify-center" @click="copyCalendarUrl(calendar.url)">Kopírovat</UButton>
+                  class="min-w-0 flex-1 select-all break-all rounded-s-md border border-e-0 border-default bg-elevated px-3 py-2 text-sm"
+                >{{ calendar.url }}</code>
+                <UButton
+                  color="primary"
+                  :icon="copiedCalendarUrl === calendar.url ? 'i-lucide-check' : undefined"
+                  class="shrink-0 justify-center rounded-s-none"
+                  @click="copyCalendarUrl(calendar.url)"
+                >
+                  {{ copiedCalendarUrl === calendar.url ? 'Zkopírováno' : 'Kopírovat' }}
+                </UButton>
               </div>
             </div>
           </div>
@@ -300,33 +327,34 @@ onMounted(() => {
             <p>Čas obnovení určuje vaše kalendářová aplikace.</p>
           </div>
 
-          <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
+            <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
             <UPopover>
-              <UButton icon="i-lucide-calendar-days" color="neutral" variant="outline" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
+              <UButton icon="i-simple-icons-googlecalendar" color="neutral" variant="ghost" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
               <template #content>
                 <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevřete Další kalendáře → Přidat další kalendáře → Z adresy URL. Vložte zkopírovanou adresu a potvrďte Přidat kalendář.</p>
               </template>
             </UPopover>
             <UPopover>
-              <UButton icon="i-lucide-apple" color="neutral" variant="outline" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
+              <UButton icon="i-simple-icons-apple" color="neutral" variant="ghost" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
               <template #content>
                 <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vložte adresu URL.</p>
               </template>
             </UPopover>
             <UPopover>
-              <UButton icon="i-lucide-mail" color="neutral" variant="outline" class="size-11" aria-label="Outlook" title="Outlook" />
+              <UButton icon="i-simple-icons-microsoftoutlook" color="neutral" variant="ghost" class="size-11" aria-label="Outlook" title="Outlook" />
               <template #content>
                 <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyberte Přidat kalendář → Přihlásit se k odběru z webu, vložte adresu a uložte. Nevolte Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
               </template>
             </UPopover>
             <UPopover>
-              <UButton icon="i-lucide-circle-help" color="neutral" variant="outline" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
+              <UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
               <template #content>
-                <p class="max-w-sm p-3 text-sm">Hledejte volbu pro přihlášení k odběru kalendáře nebo přidání kalendáře z adresy URL. Podporují ji například Thunderbird a další aplikace s iCalendar URL.</p>
+                <p class="max-w-sm p-3 text-sm">V aplikaci hledejte volbu jako Přihlásit se k odběru kalendáře, Přidat kalendář z URL nebo Síťový kalendář. Vložte zkopírovanou adresu jako nový odebíraný kalendář.</p>
               </template>
             </UPopover>
+            </div>
           </div>
-        </div>
+        </template>
       </UPageCard>
     </div>
   </section>

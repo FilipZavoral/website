@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { eventJsonLd, projectCalendarEvents } from '../app/utils/calendar.ts'
+import { eventJsonLd, osmMapUri, projectCalendarEvents } from '../app/utils/calendar.ts'
 
 test('Portal 15:00 UTC renders at 17:00 in Prague and uses the correct JSON-LD offset', () => {
   const event = { id: '1', title: 'Brno meetup', start: '2026-08-31T15:00:00.000Z', end: null, tags: [] }
   const events = projectCalendarEvents([event])
   assert.equal(events[0]?.startTime, '17:00')
-  assert.equal(events[0]?.weekdayLabel, 'PO')
+  assert.equal(events[0]?.weekdayLabel, 'po')
   assert.equal(JSON.parse(eventJsonLd([event]))['@graph'][0].startDate, '2026-08-31T17:00:00+02:00')
 })
 
@@ -40,4 +40,13 @@ test('projection gives every event its Prague date and sorts by instant then num
   assert.deepEqual(events.map(event => event.id), ['2', '20', '30'])
   assert.deepEqual(events.map(event => event.startTime), ['01:30', '01:30', '03:30'])
   assert.ok(events.every(event => event.dateLabel === '29. března 2026'))
+})
+
+test('projection builds a native map URI only for named OSM venues with coordinates', () => {
+  assert.equal(osmMapUri({
+    osm_name: 'Bitcoin Coffee & Bar',
+    osm_lat: '49.195278',
+    osm_lon: '16.608333',
+  }), 'geo:49.195278,16.608333?q=49.195278%2C16.608333(Bitcoin%20Coffee%20%26%20Bar)')
+  assert.equal(osmMapUri({ osm_name: 'Bitcoin Coffee', osm_lat: '49.195278' }), undefined)
 })

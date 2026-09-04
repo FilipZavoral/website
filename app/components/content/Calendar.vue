@@ -33,12 +33,13 @@ useHead(() => ({
 </script>
 
 <template>
-  <UPageCard as="section" aria-labelledby="calendar-title" class="my-8 min-w-0">
+  <UPageCard as="section" aria-labelledby="calendar-title" class="my-8 min-w-0" :ui="{ footer: 'w-full' }">
     <template #header>
       <h2 id="calendar-title" class="text-xl font-semibold leading-tight">Nadcházející události</h2>
     </template>
 
-    <div class="min-w-0" aria-live="polite">
+    <template #body>
+      <div class="min-w-0" aria-live="polite">
       <template v-if="status === 'pending' && !data">
         <p role="status" class="text-sm text-muted">Načítáme nadcházející události…</p>
       </template>
@@ -83,11 +84,17 @@ useHead(() => ({
         <template #content="{ item: event }">
           <div class="space-y-4 py-3.5 text-sm">
             <div
-              v-if="event.location || event.community"
+              v-if="event.osmMapUri || event.location || event.community"
               class="flex flex-wrap justify-between gap-x-4 gap-y-1 text-muted"
             >
-              <p v-if="event.location">
-                <span class="font-medium text-highlighted">Místo:</span> {{ event.location }}
+              <p v-if="event.osmMapUri || event.location" class="space-x-1">
+                <span class="font-medium text-highlighted">Místo:</span>
+                <a
+                  v-if="event.osmMapUri"
+                  :href="event.osmMapUri"
+                  class="font-medium text-highlighted underline decoration-primary underline-offset-2"
+                >{{ event.osm_name }}</a>
+                <span v-if="event.location" :class="event.osmMapUri ? 'text-xs' : undefined">{{ event.location }}</span>
               </p>
               <!-- <p v-if="event.community">
                 <span class="font-medium text-highlighted">Komunita:</span>
@@ -108,16 +115,20 @@ useHead(() => ({
           </div>
         </template>
       </UAccordion>
-    </div>
+      </div>
+    </template>
 
     <template #footer>
-      <UModal v-model:open="isSubscriptionOpen" title="Sledovat události" scrollable>
-        <UButton>Sledovat události této komunity</UButton>
+      <div class="flex w-full flex-wrap items-center justify-end gap-3 text-right">
+        <span>Nenech si ujít žádnou akci</span>
+        <UModal v-model:open="isSubscriptionOpen" title="Sledovat události" scrollable>
+          <UButton>Sledovat události</UButton>
 
-        <template #body>
-          <SubscriptionGuide v-if="isSubscriptionOpen" :initial-community="community" />
-        </template>
-      </UModal>
+          <template #body>
+            <SubscriptionGuide v-if="isSubscriptionOpen" :initial-community="community" />
+          </template>
+        </UModal>
+      </div>
     </template>
   </UPageCard>
 </template>

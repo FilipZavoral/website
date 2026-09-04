@@ -26,6 +26,10 @@ Projekt plně využívá konvence frameworku Nuxt. Pro pochopení struktury slo�
 - Avatary se ukládají do `public/images/avatars/` s názvy souborů ve formátu `jmeno.jpg` (čtverec min 512px)
 - Odkaz na Nostr by měl začínat na `nprofile...` nebo `npub...` (tedy ne URL)
 
+### Integrace kalendáře s Portalem
+
+Kalendář načítá události z `https://portal.einundzwanzig.space/`, kde je vypisují jejich organizátoři. Aby propojení fungovalo, tak je potřeba v `content/communities/mesto.md` vyplnit `portal_meetup_id` (po vytvoření meetupu v Portálu).
+
 ## Předpřipravený devcontainer
 
 Visual Studio Code nebo GitHub Workspace umožňují použít devcontainer, který má předinstalované doporučené extensions a nastavení. Cokoliv v něm spustíš (nebo AI agent) tak bude izolováno od tvého systému pomocí Docker kontejneru (nechat AI se autonomně hrabat v tvém počítači je opravdu špatný nápad 😉).

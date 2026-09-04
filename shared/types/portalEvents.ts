@@ -20,6 +20,12 @@ export interface PortalEvent extends Record<string, unknown> {
   link?: string
   safeLink?: string
   location?: string
+  osm_type?: string
+  osm_id?: number
+  osm_name?: string
+  osm_address?: string
+  osm_lat?: string
+  osm_lon?: string
   description?: string
   tags: PortalEventTag[]
   community?: PortalEventCommunity
