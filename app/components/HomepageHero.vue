@@ -45,7 +45,7 @@ useHead({ title: 'Najdi svou bitcoinovou komunitu' })
 
       <template #top>
         <NuxtImg
-          src="/app/pub-meetup.jpeg"
+          src="/images/app/pub-meetup.jpeg"
           alt=""
           width="1920"
           height="1440"

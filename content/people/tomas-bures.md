@@ -1,6 +1,6 @@
 ---
 title: Tomáš "LONG-BTC-81" Bureš
-avatar: /avatars/tomas-bures.webp
+avatar: /images/avatars/tomas-bures.webp
 links:
   - https://x.com/TomBures81
 ---

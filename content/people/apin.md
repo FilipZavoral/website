@@ -1,6 +1,6 @@
 ---
 title: Apin
-avatar: /avatars/apin.png
+avatar: /images/avatars/apin.png
 donateLnAddress: btcwzcz@blink.sv
 links:
   - https://btc.wz.cz

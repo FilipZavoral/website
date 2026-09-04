@@ -7,7 +7,7 @@ const props = defineProps<{
 </script>
 
 <template>
-  <NuxtLayout name="wallpaper" bg-src="/app/not-found-wallpaper.webp">
+  <NuxtLayout name="wallpaper" bg-src="/images/app/not-found-wallpaper.webp">
     <div class="max-w-md flex flex-col items-center gap-10 ">
       <h1 class="text-9xl font-bold text-primary/80">
         {{ error.status }}
