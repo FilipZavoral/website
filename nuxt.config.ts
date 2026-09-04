@@ -94,6 +94,10 @@ export default defineNuxtConfig({
 
   nitro: {
     devStorage: {
+      miners: {
+        driver: 'fs',
+        base: '/tmp/jednadvacet-miners',
+      },
       portalEvents: {
         driver: 'fs',
         base: '/tmp/jednadvacet-portal-events',
@@ -101,9 +105,15 @@ export default defineNuxtConfig({
     },
     storage: isPreviewDeploy
       ? {
+          miners: { driver: 'memory' },
           portalEvents: { driver: 'memory' },
         }
       : {
+          miners: {
+            driver: 'cloudflare-kv-binding',
+            binding: 'PORTAL_EVENT_SNAPSHOTS',
+            base: 'miners:v1',
+          },
           portalEvents: {
             driver: 'cloudflare-kv-binding',
             binding: 'PORTAL_EVENT_SNAPSHOTS',
