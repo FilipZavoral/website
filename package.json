@@ -27,6 +27,7 @@
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
+    "@iconify-json/bitcoin-icons": "^1.2.5",
     "@iconify-json/lucide": "^1.2.98",
     "@iconify-json/pinhead": "^1.2.26",
     "@iconify-json/simple-icons": "^1.2.94",

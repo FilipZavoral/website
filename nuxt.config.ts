@@ -1,5 +1,6 @@
 const isPreviewDeploy = Boolean(process.env.PREVIEW_DEPLOY)
-const studioIconLibraries = ['lucide', 'pinhead', 'simple-icons', 'streamline']
+
+const studioIconLibraries = ['bitcoin-icons', 'lucide', 'pinhead', 'simple-icons', 'streamline']
 
 // Nitro 2's bundled Wrangler type predates traces, but it emits this object unchanged.
 const cloudflareObservability = {
@@ -84,7 +85,7 @@ export default defineNuxtConfig({
     provider: 'none',
     clientBundle: {
       scan: {
-        globInclude: ['app/**/*.{vue,ts}', 'content/**/*.{md,yml,yaml}'],
+        globInclude: ['app/**/*.{vue,ts}', 'content/**/*.{md,yml,yaml}', 'shared/data/navigation.ts'],
         globExclude: ['node_modules'],
       },
       sizeLimitKb: 256,
