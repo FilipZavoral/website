@@ -43,10 +43,10 @@ const items = computed<NavigationMenuItem[]>(() => [
     ]
   },
   {
-    label: 'O Jednadvacet',
-    to: '/lide',
+    label: 'Projekty',
     children: [
       { label: 'Lidé', to: '/lide' },
+      { label: 'BTC Liga', to: '/liga' },
       { label: 'Medojedíci', to: '/medojedici' },
       { label: 'Získej financování', to: '/finance' },
     ],
