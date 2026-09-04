@@ -13,22 +13,56 @@ Projekt plně využívá konvence frameworku Nuxt. Pro pochopení struktury slo�
 
 ## Správa obsahu
 
-### Blog
+Většina obsahu webu je uložená jako Markdown v adresáři `content/`. Strukturu metadat v záhlaví souborů (frontmatter) určuje `content.config.ts`.
+
+### Články na blogu
 
 - Články se ukládají do `content/blog-articles/` s názvy souborů ve formátu `YYYYMMDD.nazev-clanku.md`
-- Články se píšou v jazyce zvaném Markdown, [zde je jednoduchý tutoriál](https://www.markdowntutorial.com/)
+- Články se píšou v jazyce Markdown ([zde je jednoduchý tutoriál](https://www.markdowntutorial.com/)) s [rozšířením MDC](https://content.nuxt.com/docs/files/markdown#mdc-syntax) pro využívání komponent.
 - Obrázky se ukládají do `public/images/blog/` s názvy souborů ve formátu `nazev-clanku-obrazek.jpg`
-- V článku se zobruje datum zveřejnění článku, to se nastaví v názvu souboru. (Tedy musí být aktualizováno před schválením v pull requestu.)
+- Datum zveřejnění článku se nastavuje v názvu souboru. Před schválením pull requestu proto zkontroluj, že odpovídá plánovanému datu vydání.
+- Povinná metadata článku jsou `title` a `thumbnail`. Pomocí `categories` a `authors` lze článek propojit s kategoriemi a lidmi.
 
-### People
+### Kategorie blogu
+
+- Kategorie se ukládají do `content/blog-categories/` jako Markdown soubory.
+- Každá kategorie musí mít v metadatech `title`. Název souboru slouží jako identifikátor kategorie, který se používá také v poli `categories` u článků.
+- Kategorie i články sdílejí veřejný prostor pod `/blog`, proto jejich cesty musí být jedinečné.
+
+### Stránky
+
+- Běžné obsahové stránky se ukládají do `content/pages/` jako Markdown soubory.
+- Název souboru určuje veřejnou cestu stránky. Například `content/pages/kalendar.md` se zobrazí na `/kalendar` a `content/pages/index.md` na úvodní stránce.
+- Stránka musí mít v metadatech `title`. V jejím obsahu lze používat podporované Markdown a MDC komponenty.
+
+### Komunity
+
+- Profily místních komunit se ukládají do `content/communities/` s názvy souborů ve formátu `mesto.md`.
+- Komunity se stejně jako běžné stránky zobrazují přímo v kořeni webu. Cesta komunity proto nesmí kolidovat se stránkou ani s vyhrazenou cestou `/blog`.
+- Povinná metadata jsou `title`, `region` a `signal_group`. Souřadnice v `map` určují umístění na mapě, `priority` pořadí prioritních měst a `organizers` odkazuje na soubory v `content/people/`.
+- Propojení s kalendářem se nastavuje pomocí `portal_meetup_id`; podrobnosti jsou v části [Integrace kalendáře s Portalem](#integrace-kalendáře-s-portalem).
+
+### Lidé
 
 - Profily autorů článků, organizátorů apod. se ukládají do `content/people/` s názvy souborů ve formátu `jmeno.md`
 - Avatary se ukládají do `public/images/avatars/` s názvy souborů ve formátu `jmeno.jpg` (čtverec min 512px)
 - Odkaz na Nostr by měl začínat na `nprofile...` nebo `npub...` (tedy ne URL)
+- Název souboru slouží jako identifikátor používaný v polích `authors` u článků a `organizers` u komunit.
+
+### Sdílená data
+
+Některý obsah není uložený v Markdownu, ale přímo v `shared/data/`:
+
+- `navigation.ts` obsahuje pevné položky hlavní navigace. Města a kategorie blogu se do navigace doplňují automaticky z příslušných kolekcí.
+- `partners.ts` obsahuje názvy partnerů, popisky, odkazy a parametry log. Soubory log se ukládají do `public/images/partners/`.
+- `communityMapGeometry.json` obsahuje technická geografická data mapy, včetně obrysů států a krajů. Běžné souřadnice komunit se upravují v `content/communities/`, nikoli v tomto souboru.
+- `contentRouteSources.ts` je technický zdroj názvů adresářů a veřejných prefixů routovaných kolekcí. Upravuje se pouze při přidání, přesunu nebo změně routování celé kolekce; sestavení projektu kontroluje kolize veřejných cest.
 
 ### Integrace kalendáře s Portalem
 
 Kalendář načítá události z `https://portal.einundzwanzig.space/`, kde je vypisují jejich organizátoři. Aby propojení fungovalo, tak je potřeba v `content/communities/mesto.md` vyplnit `portal_meetup_id` (po vytvoření meetupu v Portálu).
+
+Události se v tomto repozitáři nespravují.
 
 ## Předpřipravený devcontainer
 
