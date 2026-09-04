@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import QRCode from 'qrcode'
+import LightningQrCode from './LightningQrCode.vue'
 
 const props = defineProps<{
   authorId: string
@@ -27,23 +27,10 @@ const communities = computed(() => data.value?.communities || [])
 
 const isDonateOpen = ref(false)
 const isArticlesOpen = ref(false)
-const qrCodeDataUrl = ref<string | null>(null)
 
 const lightningUrl = computed(() => {
   if (!author.value?.donateLnAddress) return null
   return `lightning:${author.value.donateLnAddress}`
-})
-
-watchEffect(async () => {
-  if (!lightningUrl.value) {
-    qrCodeDataUrl.value = null
-    return
-  }
-
-  qrCodeDataUrl.value = await QRCode.toDataURL(lightningUrl.value, {
-    margin: 1,
-    width: 256,
-  })
 })
 </script>
 
@@ -64,10 +51,11 @@ watchEffect(async () => {
           <template #body>
             <div class="flex flex-col items-center gap-4">
               <div class="rounded-lg border border-muted p-3 bg-white">
-                <img v-if="qrCodeDataUrl" :src="qrCodeDataUrl" :alt="`QR ${author?.title || ''}`" class="h-48 w-48" />
-                <div v-else class="h-48 w-48 flex items-center justify-center text-sm text-muted">
-                  QR se připravuje...
-                </div>
+                <LightningQrCode
+                  v-if="author.donateLnAddress"
+                  :address="author.donateLnAddress"
+                  :alt="`QR ${author.title}`"
+                />
               </div>
               <p class="text-sm text-muted text-center">
                 {{ author?.donateLnAddress }}
