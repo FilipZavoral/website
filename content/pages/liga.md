@@ -56,15 +56,11 @@ Kvíz pro týmy, které se orientují v historii Bitcoinu, miningu, Lightningu, 
 Kategorie mají oddělené otázky, žebříčky i ceny. Tým si úroveň vybírá podle zkušeností většiny svých hráčů.
 ::
 
-::u-page-section
----
-title: O co se hraje
-description: Ceny podporují firmy a projekty z bitcoinové komunity.
----
+::u-page-c-t-a{title="O co se hraje" description="Vítězné týmy se mohou těšit na bitcoinové produkty, vouchery, slevy, merch a vstupenky na konference. Sezónní ceny rozdělíme samostatně pro nováčky a pokročilé." orientation="horizontal"}
 
-Vítězné týmy se mohou těšit na bitcoinové produkty, vouchery, slevy, merch a vstupenky na konference. Mezi potvrzené nebo oslovené podporovatele patří Braiins, Anycoin, Coinmate, Firefish, Štosuj, BTC Prague, ChainCamp, CryptoByte, Invity a Bitcoin by Satoshi.
+![Ceny BTC Ligy: bitcoinové produkty, knihy a merch](/images/liga/prices.jpeg)
 
-Sezónní ceny rozdělíme samostatně pro nováčky a pokročilé. Konkrétní balíčky budeme průběžně zveřejňovat.
+:partners-list{logo-only names="Firefish,Stosuj,BTC Prague"}
 ::
 
 ::u-page-section
