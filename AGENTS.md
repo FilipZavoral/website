@@ -30,6 +30,7 @@
 - `pages` and `communities` share the root URL space. Keep their public paths unique and preserve the routing precedence defined by the catch-all pages.
 - Source code lives in `app/`, `content/`, `shared/`, and root configuration files. Treat `.nuxt/`, `.output/`, `.data/`, root log files, and `node_modules/` as generated or diagnostic output rather than source of truth.
 - Treat content as actionable work only when it has a syntactic TODO marker or an unambiguous product placeholder. Ordinary editorial prose, including future-looking prose, is not an implementation task.
+- Use icons only from the collections allowed by `studio.editor.iconLibraries` in `nuxt.config.ts` and installed directly as `@iconify-json/*` dependencies. Do not introduce icons from other collections or dynamically construct icon names unless they are explicitly included in the Nuxt Icon client bundle.
 
 ## Coding Conventions
 
@@ -72,3 +73,4 @@
 - Run `npm run build:cloudflare` when changing Cloudflare deployment behavior or production image-provider selection.
 - For UI and route changes, use `agent-browser` to inspect the rendered DOM at desktop and mobile sizes and take screenshots when visual evidence is useful. Do not install or use Puppeteer, Playwright, or another browser automation package.
 - Verify actual page content and error rendering rather than relying only on an HTTP status code or successful compilation.
+- After adding or changing an icon, run the production build and inspect its Nuxt Icon output for unresolved or dropped icons. Use `agent-browser` on every affected route to verify the icon is visibly rendered after SSR and client navigation, and confirm that rendering does not request `/api/_nuxt_icon/**` or `api.iconify.design`. A successful build alone is not sufficient.

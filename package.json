@@ -8,12 +8,11 @@
     "build:cloudflare": "CLOUDFLARE_DEPLOY=1 npm run build",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
     "typecheck": "nuxt typecheck",
-    "dev": "nuxt dev --port 2103"
+    "dev": "CHOKIDAR_USEPOLLING=1 CHOKIDAR_INTERVAL=500 nuxt dev --port 2103",
+    "dev:tunnel": "UNTUN_ACCEPT_CLOUDFLARE_NOTICE=true npm run dev -- --tunnel"
   },
   "dependencies": {
     "@counterscale/tracker": "^3.4.1",
-    "@iconify-json/simple-icons": "^1.2.74",
-    "@iconify-json/streamline": "^1.2.5",
     "@libsql/client": "^0.17.0",
     "@nuxt/content": "^3.11.0",
     "@nuxt/image": "^2.0.0",
@@ -29,6 +28,9 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.98",
+    "@iconify-json/pinhead": "^1.2.26",
+    "@iconify-json/simple-icons": "^1.2.94",
+    "@iconify-json/streamline": "^1.2.5",
     "@nuxt/kit": "^4.4.2",
     "@types/node": "^24.12.0",
     "@types/qrcode": "^1.5.6",
