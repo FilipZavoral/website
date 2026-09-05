@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { partners } from '#shared/data/partners'
 
-const { logoOnly = false } = defineProps<{
+const { logoOnly = false, names } = defineProps<{
   logoOnly?: boolean
+  names?: string
 }>()
+
+const displayedPartners = computed(() => {
+  if (!names) return partners
+
+  const selectedNames = names.split(',').map(name => name.trim())
+  return partners.filter(partner => selectedNames.includes(partner.name))
+})
 </script>
 
 <template>
   <ul
     class="grid"
-    :class="logoOnly ? 'grid-cols-2 gap-2' : 'grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4'"
+    :class="logoOnly ? 'grid-cols-1 gap-2 lg:grid-cols-2' : 'grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4'"
   >
-    <li v-for="partner in partners" :key="partner.name" class="min-w-0">
+    <li v-for="partner in displayedPartners" :key="partner.name" class="min-w-0">
       <ULink
         v-if="logoOnly"
         :to="partner.href"
