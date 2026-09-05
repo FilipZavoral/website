@@ -6,7 +6,7 @@ const commonSchema = {
   title: z.string(),
   seo: property(z.any().optional()).editor({ hidden: true }),
   navigation: property(z.any().optional()).editor({ hidden: true }),
-  sitemap: property(defineSitemapSchema()).editor({ hidden: true }),
+  sitemap: property(defineSitemapSchema({ z })).editor({ hidden: true }),
 }
 
 const exclude = ['README.md']

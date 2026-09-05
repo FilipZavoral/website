@@ -5,7 +5,7 @@
 		"XDG_DATA_HOME": "/workspace/.devcontainer/data"
 	},
 	"workspaceFolder": "/workspace",
-	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
 	"runArgs": [
 		"--name",
 		"${localWorkspaceFolderBasename}-${devcontainerId}"
@@ -26,11 +26,6 @@
 				"vue.volar"
 			],
 			"settings": {
-				"[markdown]": {
-					"editor.wordWrap": "on",
-					"editor.formatOnSave": false,
-					"editor.defaultFormatter": null
-				},
 				"launch": {
 					"version": "0.2.0",
 					"configurations": [
@@ -47,7 +42,7 @@
 					"source.fixAll.oxc": "explicit"
 				},
 				"editor.defaultFormatter": "esbenp.prettier-vscode",
-				"editor.formatOnSave": true,
+				"editor.formatOnSave": false,
 				"editor.quickSuggestions": {
 					"strings": "on"
 				},

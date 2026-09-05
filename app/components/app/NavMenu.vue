@@ -76,6 +76,13 @@ const items = computed<NavigationMenuItem[]>(() => navigationItems.map((item) =>
     }
   }
 
+  if (item.value === 'projects' && orientation === 'horizontal') {
+    return {
+      ...item,
+      ui: { content: 'sm:min-w-[25rem]' },
+    }
+  }
+
   return item
 }))
 
