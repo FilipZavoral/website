@@ -1,6 +1,7 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from 'h3'
 import {
   getPortalCommunities,
+  markPortalEventCancelled,
   refreshPortalMeetups,
 } from '../../utils/portalEvents.ts'
 
@@ -64,6 +65,14 @@ export const getPortalWebhookMeetupId = (payload: Record<string, unknown>) => {
   return null
 }
 
+/** Extracts the affected Portal event ID when the webhook addresses an event. */
+export const getPortalWebhookEventId = (payload: Record<string, unknown>) => {
+  if (payload.resource !== 'meetup-event') return null
+  if (isRecord(payload.data) && Number.isSafeInteger(payload.data.id)) return String(payload.data.id)
+  if (isRecord(payload.previous) && Number.isSafeInteger(payload.previous.id)) return String(payload.previous.id)
+  return null
+}
+
 /** Validates a Portal webhook envelope and refreshes its configured community when applicable. */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -96,6 +105,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const community = (await getPortalCommunities(event)).find(item => item.portalMeetupId === meetupId)
-  if (community) await refreshPortalMeetups([community], useStorage('portalEvents'), $fetch)
+  if (community) {
+    const storage = useStorage('portalEvents')
+    if (eventName === 'meetup-event.deleted') {
+      const eventId = getPortalWebhookEventId(payload)
+      if (eventId) await markPortalEventCancelled(community, eventId, storage)
+    }
+    await refreshPortalMeetups([community], storage, $fetch)
+  }
   return { ok: true }
 })

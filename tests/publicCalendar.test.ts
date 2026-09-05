@@ -1,124 +1,149 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import ICAL from 'ical.js'
 import {
-  assertPublicCalendarRequest,
+  generateCalendar,
   getPublicCalendarFeed,
+  parsePublicCalendarScope,
   PublicCalendarError,
   type PublicCalendarDependencies,
 } from '../server/routes/ical/[slug].get.ts'
-import type { PortalCommunity } from '../server/utils/portalEvents.ts'
+import type { PortalCalendarEvent, PortalCommunity, PortalStorage } from '../server/utils/portalEvents.ts'
 
-const brno: PortalCommunity = {
-  id: 'brno',
-  path: '/brno',
-  title: 'Jednadvacet Brno',
-  portalMeetupId: 360,
-}
+const brno: PortalCommunity = { id: 'brno', path: '/brno', title: 'Brno', portalMeetupId: 360 }
+const online: PortalCommunity = { id: 'online-poker', path: '/online-poker', title: 'Online poker', portalMeetupId: 367 }
+const now = new Date('2026-08-30T12:00:00.000Z')
 
-const calendarBody = [
-  'BEGIN:VCALENDAR',
-  'VERSION:2.0',
-  'BEGIN:VEVENT',
-  'UID:event-1@example.test',
-  'SEQUENCE:2',
-  'STATUS:CANCELLED',
-  'END:VEVENT',
-  'END:VCALENDAR',
-].join('\r\n')
-
-const dependencies = (fetcher: PublicCalendarDependencies['fetch']): PublicCalendarDependencies => ({
-  communities: async () => [brno],
-  fetch: fetcher,
+const portalEvent = (id: number, portalLink: string, title: string) => ({
+  id,
+  title,
+  start: '2026-08-31 15:00',
+  end: '2026-08-31 17:00',
+  description: 'První řádek\nDruhý řádek',
+  link: 'https://example.test/event',
+  osm_name: 'Bitcoin Coffee',
+  osm_address: 'Brno, Česko',
+  tags: [{ name: 'Začátečníci' }],
+  'meetup.portalLink': portalLink,
 })
 
-test('configured slug returns the exact upstream calendar body with fresh inline headers', async () => {
-  const requests: Array<{ url: string, init: RequestInit | undefined }> = []
-  const response = await getPublicCalendarFeed('brno', dependencies(async (url, init) => {
-    requests.push({ url, init })
-    return new Response(calendarBody, {
-      status: 200,
-      headers: {
-        'content-type': 'text/calendar; charset=utf-8',
-        'set-cookie': 'portal-session=secret',
-        'x-portal-debug': 'do-not-forward',
-      },
-    })
-  }))
+const meetupRows = [
+  { id: 360, portalLink: 'portal:brno' },
+  { id: 367, portalLink: 'portal:online' },
+]
 
-  assert.deepEqual(requests, [{
-    url: 'https://portal.einundzwanzig.space/stream-calendar?meetup=360',
-    init: undefined,
-  }])
+const dependencies = (options: { events?: unknown[], fail?: boolean } = {}): PublicCalendarDependencies => {
+  const values = new Map<string, unknown>()
+  const storage: PortalStorage = {
+    getItem: async key => values.get(key),
+    setItem: async (key, value) => { values.set(key, value) },
+  }
+  return {
+    communities: async () => [brno, online],
+    storage,
+    fetch: async (url) => {
+      if (options.fail) throw new Error('Portal transport detail')
+      return url.endsWith('/meetups')
+        ? meetupRows
+        : options.events ?? [
+            portalEvent(1, 'portal:brno', 'Brněnský meetup'),
+            portalEvent(2, 'portal:online', 'Online meetup'),
+          ]
+    },
+    now,
+  }
+}
+
+test('configured scope returns one generated inline calendar with stable event metadata', async () => {
+  const response = await getPublicCalendarFeed('brno', dependencies())
+  const body = await response.text()
+  const calendar = ICAL.Component.fromString(body)
+  const event = calendar.getFirstSubcomponent('vevent')
+
   assert.equal(response.status, 200)
   assert.equal(response.headers.get('content-type'), 'text/calendar; charset=utf-8')
   assert.equal(response.headers.get('content-disposition'), 'inline')
   assert.equal(response.headers.get('vary'), 'Sec-Fetch-Dest')
   assert.equal(response.headers.get('x-content-type-options'), 'nosniff')
-  assert.equal(response.headers.get('set-cookie'), null)
-  assert.equal(response.headers.get('x-portal-debug'), null)
-  assert.equal(await response.text(), calendarBody)
+  assert.equal(calendar.getFirstPropertyValue('x-wr-calname'), 'Jednadvacet - Brno')
+  assert.equal(event?.getFirstPropertyValue('uid'), 'meetup-event-1@einundzwanzig.space')
+  assert.equal(event?.getFirstPropertyValue('summary'), 'Brněnský meetup')
+  assert.equal(event?.getFirstPropertyValue('status'), 'CONFIRMED')
+  assert.equal(event?.getFirstPropertyValue('location'), 'Bitcoin Coffee, Brno, Česko')
+  assert.match(String(event?.getFirstPropertyValue('description')), /^\[Začátečníci\]\n\nPrvní řádek/)
 })
 
-test('browser document navigations receive the feed as readable plain text', async () => {
-  const response = await getPublicCalendarFeed('brno', dependencies(async () => new Response(calendarBody)), true)
+test('comma-separated and all-country scopes produce one calendar containing every selected community', async () => {
+  assert.deepEqual(parsePublicCalendarScope('online-poker,brno'), ['brno', 'online-poker'])
+  for (const scope of ['brno,online-poker', 'all']) {
+    const response = await getPublicCalendarFeed(scope, dependencies())
+    const calendar = ICAL.Component.fromString(await response.text())
+    const events = calendar.getAllSubcomponents('vevent')
+    assert.equal(calendar.getFirstPropertyValue('x-wr-calname'), scope === 'all'
+      ? 'Jednadvacet - Celé Česko'
+      : 'Jednadvacet - Brno, Online poker')
+    assert.deepEqual(events.map(event => event.getFirstPropertyValue('summary')), [
+      'Brno - Brněnský meetup',
+      'Online poker - Online meetup',
+    ])
+  }
+})
 
+test('browser document navigations receive the generated feed as readable plain text', async () => {
+  const response = await getPublicCalendarFeed('brno', dependencies(), true)
   assert.equal(response.headers.get('content-type'), 'text/plain; charset=utf-8')
-  assert.equal(response.headers.get('content-disposition'), 'inline')
-  assert.equal(await response.text(), calendarBody)
+  assert.match(await response.text(), /^BEGIN:VCALENDAR/)
 })
 
-test('public calendar output fails closed when it would expose the configured Portal meetup ID', async () => {
-  await assert.rejects(
-    getPublicCalendarFeed('brno', dependencies(async () => new Response(`BEGIN:VCALENDAR\r\nX-PORTAL-ID:${brno.portalMeetupId}\r\nEND:VCALENDAR`))),
-    (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 502,
-  )
+test('generated cancellation preserves UID and emits a higher sequence', () => {
+  const item: PortalCalendarEvent = {
+    event: {
+      id: '1',
+      title: 'Zrušený meetup',
+      start: '2026-08-31T15:00:00.000Z',
+      end: null,
+      tags: [],
+    },
+    sequence: 10,
+    changedAt: now.toISOString(),
+    cancelled: true,
+    community: brno,
+  }
+  const calendar = ICAL.Component.fromString(generateCalendar('Jednadvacet', [item]))
+  const event = calendar.getFirstSubcomponent('vevent')
+  assert.equal(event?.getFirstPropertyValue('uid'), 'meetup-event-1@einundzwanzig.space')
+  assert.equal(event?.getFirstPropertyValue('status'), 'CANCELLED')
+  assert.equal(event?.getFirstPropertyValue('sequence'), 10)
 })
 
-test('malformed, numeric, unknown, and query-extended requests do not fetch Portal', async () => {
-  for (const slug of ['360', 'brno/../../private', 'brno?meetup=360', undefined]) {
-    let calls = 0
-    await assert.rejects(
-      getPublicCalendarFeed(slug, dependencies(async () => {
-        calls += 1
-        return new Response(calendarBody)
-      })),
+test('malformed, numeric, duplicate, unknown, and query-extended scopes fail safely', async () => {
+  for (const scope of ['360', 'brno/../../private', 'brno,,online-poker', 'brno,brno', undefined]) {
+    assert.throws(
+      () => parsePublicCalendarScope(scope),
       (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 400,
     )
-    assert.equal(calls, 0)
   }
-
-  let unknownCalls = 0
-  await assert.rejects(
-    getPublicCalendarFeed('unknown', dependencies(async () => {
-      unknownCalls += 1
-      return new Response(calendarBody)
-    })),
-    (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 404,
-  )
-  assert.equal(unknownCalls, 0)
-
   assert.throws(
-    () => assertPublicCalendarRequest('brno', { upstream: 'https://attacker.example/calendar' }),
+    () => parsePublicCalendarScope('brno', { upstream: 'https://attacker.example/calendar' }),
     (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 400,
+  )
+  await assert.rejects(
+    getPublicCalendarFeed('unknown', dependencies()),
+    (error: unknown) => error instanceof PublicCalendarError && error.statusCode === 404,
   )
 })
 
-test('Portal transport and non-OK failures return safe local errors without upstream details', async () => {
+test('Portal failures return a safe local error without upstream details', async () => {
   await assert.rejects(
-    getPublicCalendarFeed('brno', dependencies(async () => {
-      throw new Error('upstream session failed for meetup 360')
-    })),
+    getPublicCalendarFeed('brno', dependencies({ fail: true })),
     (error: unknown) => error instanceof PublicCalendarError
       && error.statusCode === 503
-      && !error.message.includes('360'),
+      && !error.message.includes('Portal transport detail'),
   )
+})
 
-  await assert.rejects(
-    getPublicCalendarFeed('brno', dependencies(async () => new Response('secret upstream failure for meetup 360', {
-      status: 500,
-    }))),
-    (error: unknown) => error instanceof PublicCalendarError
-      && error.statusCode === 502
-      && !error.message.includes('360'),
-  )
+test('generated output contains no Portal lookup metadata', async () => {
+  const response = await getPublicCalendarFeed('brno', dependencies({ events: [portalEvent(1, 'portal:brno', 'Meetup 360')] }))
+  const body = await response.text()
+  assert.doesNotMatch(body, /meetup=360|portal:brno|X-PORTAL/i)
 })
