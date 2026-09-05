@@ -19,6 +19,7 @@ export const useDataCommunities = () => {
   return useAsyncData('communities', () => {
     return queryCollection('communities')
       .all()
+      .then(communities => communities.filter(community => !community.hidden))
   })
 }
 

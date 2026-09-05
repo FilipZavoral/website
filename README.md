@@ -41,6 +41,7 @@ Většina obsahu webu je uložená jako Markdown v adresáři `content/`. Strukt
 - Komunity se stejně jako běžné stránky zobrazují přímo v kořeni webu. Cesta komunity proto nesmí kolidovat se stránkou ani s vyhrazenou cestou `/blog`.
 - Povinná metadata jsou `title`, `region` a `signal_group`. Souřadnice v `map` určují umístění na mapě, `priority` pořadí prioritních měst a `organizers` odkazuje na soubory v `content/people/`.
 - Propojení s kalendářem se nastavuje pomocí `portal_meetup_id`; podrobnosti jsou v části [Integrace kalendáře s Portalem](#integrace-kalendáře-s-portalem).
+- Nastavením `hidden: true` lze komunitu ponechat dostupnou pro kalendářovou integraci a samostatný odběr, ale skrýt její landing page, navigaci, mapu a záznam v sitemap.
 
 ### Lidé
 

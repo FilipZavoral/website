@@ -12,7 +12,7 @@ const { data: result } = await useAsyncData('page-' + route.path, async (): Prom
   if (page) return { type: 'page', item: page }
 
   const community = await queryCollection('communities').path(route.path).first()
-  if (community) return { type: 'community', item: community }
+  if (community && !community.hidden) return { type: 'community', item: community }
 
   return null
 })

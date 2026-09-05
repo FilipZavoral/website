@@ -51,6 +51,11 @@ export default defineContentConfig({
       },
       schema: z.object({
         ...commonSchema,
+        sitemap: property(defineSitemapSchema({
+          name: 'communities',
+          filter: community => community.hidden !== true,
+        })).editor({ hidden: true }),
+        hidden: property(z.boolean().optional()).editor({ description: 'Skryje komunitu z veřejné landing page, navigace, mapy a sitemap.' }),
         region: z.string().trim().min(1),
         priority: z.number().int().nonnegative().optional(),
         map: property(z.object({
