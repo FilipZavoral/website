@@ -3,6 +3,7 @@ import { defineSitemapSchema } from '@nuxtjs/sitemap/content'
 import { routedContentSources } from './shared/data/contentRouteSources'
 
 const commonSchema = {
+  title: z.string(),
   seo: property(z.any().optional()).editor({ hidden: true }),
   navigation: property(z.any().optional()).editor({ hidden: true }),
   sitemap: property(defineSitemapSchema()).editor({ hidden: true }),
@@ -23,7 +24,6 @@ export default defineContentConfig({
         ...commonSchema,
         published: property(z.string().optional()).editor({ hidden: true }),
         thumbnail: z.string(),
-        title: z.string(),
         categories: z.array(z.string()).optional(),
         authors: z.array(z.string()).optional(),
         redirect_from: z.array(z.string()).optional(),
@@ -51,7 +51,6 @@ export default defineContentConfig({
       },
       schema: z.object({
         ...commonSchema,
-        title: z.string(),
         region: z.string().trim().min(1),
         priority: z.number().int().nonnegative().optional(),
         map: property(z.object({
@@ -84,6 +83,7 @@ export default defineContentConfig({
         exclude,
       },
       schema: z.object({
+        title: z.string(),
         seo: property(z.any().optional()).editor({ hidden: true }),
         navigation: property(z.any().optional()).editor({ hidden: true }),
         avatar: z.string().optional(),

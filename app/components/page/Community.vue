@@ -8,12 +8,6 @@ defineProps<{
 
 <template>
 
-  <Head>
-    <Title>{{ community.title }}</Title>
-    <Meta property="og:title" :content="community.title" />
-    <Meta property="og:type" content="website" />
-  </Head>
-
   <UContainer>
     <header class="mb-8">
       <h1 class="text-4xl font-bold">{{ community.title }}</h1>
