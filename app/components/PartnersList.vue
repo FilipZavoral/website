@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { partners } from '#shared/data/partners'
+import type { Partner } from '#shared/data/partners'
+import { otherPartners, partners } from '#shared/data/partners'
 
-const { logoOnly = false, names } = defineProps<{
+const { logoOnly = false, names, other = false } = defineProps<{
   logoOnly?: boolean
   names?: string
+  other?: boolean
 }>()
 
-const displayedPartners = computed(() => {
-  if (!names) return partners
+const displayedPartners = computed<readonly Partner[]>(() => {
+  const selectedPartners: readonly Partner[] = other ? otherPartners : partners
+  if (!names) return selectedPartners
 
   const selectedNames = names.split(',').map(name => name.trim())
-  return partners.filter(partner => selectedNames.includes(partner.name))
+  return selectedPartners.filter(partner => selectedNames.includes(partner.name))
 })
 </script>
 
@@ -35,10 +38,19 @@ const displayedPartners = computed(() => {
           :height="partner.logoHeight"
           sizes="160px"
           class="h-10 w-full object-contain"
-          :class="partner.darkInvert ? 'dark:brightness-0 dark:invert' : undefined"
+          :class="partner.logoDark ? 'dark:hidden' : undefined"
           aria-hidden="true"
         />
-
+        <NuxtImg
+          v-if="partner.logoDark"
+          :src="partner.logoDark"
+          alt=""
+          :width="partner.logoWidth"
+          :height="partner.logoHeight"
+          sizes="160px"
+          class="hidden h-10 w-full object-contain dark:block"
+          aria-hidden="true"
+        />
       </ULink>
 
       <ULink
@@ -56,7 +68,17 @@ const displayedPartners = computed(() => {
           :height="partner.logoHeight"
           sizes="160px"
           class="h-12 w-full object-contain"
-          :class="partner.darkInvert ? 'dark:brightness-0 dark:invert' : undefined"
+          :class="partner.logoDark ? 'dark:hidden' : undefined"
+          aria-hidden="true"
+        />
+        <NuxtImg
+          v-if="partner.logoDark"
+          :src="partner.logoDark"
+          alt=""
+          :width="partner.logoWidth"
+          :height="partner.logoHeight"
+          sizes="160px"
+          class="hidden h-12 w-full object-contain dark:block"
           aria-hidden="true"
         />
         <span class="mt-4 flex items-center gap-1.5 text-sm text-muted group-hover:underline">

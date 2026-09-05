@@ -1,7 +1,7 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 
 export const supportNavigationItems = [
-  { label: 'Další partneři', to: '/podporit#partneri' },
+  { label: 'Další partneři', to: '/podporit#dalsi-partneri' },
   { label: 'Přispět', to: '/podporit#prispet' },
 ] satisfies NavigationMenuItem[]
 

@@ -17,6 +17,15 @@ title: Partneři Jednadvacet
 
 ::u-page-section
 ---
+description: Tito neziskoví partneři sice Jednadvacítku nepodporují penězi, ale máme je rádi.
+id: dalsi-partneri
+title: Další partneři
+---
+:partners-list{other}
+::
+
+::u-page-section
+---
 description: Pošli příspěvek přes Lightning a pomoz nám rozvíjet českou
   bitcoinovou komunitu.
 id: prispet
