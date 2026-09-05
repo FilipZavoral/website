@@ -31,10 +31,10 @@ export const navigationItems = [
     value: 'projects',
     children: [
       {
-        label: 'Medojedíci',
-        description: 'Sbírej placky unikátní pro každou akci.',
-        icon: 'i-lucide-bug',
-        to: '/medojedici',
+        label: 'Monument',
+        description: 'Postavme Satoshimu sochu v Praze.',
+        icon: 'i-lucide-pyramid',
+        to: 'https://satoshi.jednadvacet.org/',
       },
       {
         label: 'Bitcoinová liga',
@@ -43,15 +43,19 @@ export const navigationItems = [
         to: '/liga',
       },
       {
+        label: 'Bitcoin je mrtvý',
+        description: 'Již 15 let sledujeme Bitcoin umírat',
+        icon: 'i-streamline-christian-cross-2',
+        to: 'https://mrtvy.jednadvacet.org',
+      },
+      {
         label: 'Získej financování',
         description: 'Pomůžeme tu najít sponzory tvého projektu.',
-        icon: 'i-lucide-hand-coins',
         to: '/finance',
       },
       {
         label: 'Lidé',
         description: 'Komunita, která stojí za Jednadvacet.',
-        icon: 'i-lucide-users',
         to: '/lide',
       },
     ],
