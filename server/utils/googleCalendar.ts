@@ -35,9 +35,9 @@ export class GoogleCalendarError extends Error {}
 /** Validates private runtime configuration before any Google side effect. */
 export const getGoogleCalendarConfig = (runtimeConfig: Record<string, unknown>): GoogleCalendarConfig => {
   const values = {
-    clientId: runtimeConfig.googleOAuthClientId,
-    clientSecret: runtimeConfig.googleOAuthSecret,
-    refreshToken: runtimeConfig.googleOAuthRefreshToken,
+    clientId: runtimeConfig.googleOauthClientId,
+    clientSecret: runtimeConfig.googleOauthSecret,
+    refreshToken: runtimeConfig.googleOauthRefreshToken,
     calendarId: runtimeConfig.googleLegacyCalendarId,
   }
   if (Object.values(values).some(value => typeof value !== 'string' || !value)) {

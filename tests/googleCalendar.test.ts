@@ -48,9 +48,9 @@ test('Google event IDs are stable base32hex values accepted by Calendar', async 
 
 test('Google configuration requires every private OAuth value', () => {
   assert.deepEqual(getGoogleCalendarConfig({
-    googleOAuthClientId: 'client-id',
-    googleOAuthSecret: 'secret',
-    googleOAuthRefreshToken: 'refresh',
+    googleOauthClientId: 'client-id',
+    googleOauthSecret: 'secret',
+    googleOauthRefreshToken: 'refresh',
     googleLegacyCalendarId: 'calendar',
   }), {
     clientId: 'client-id',
