@@ -23,7 +23,7 @@ const portalEvent = (id: number, portalLink: string, title: string) => ({
   link: 'https://example.test/event',
   osm_name: 'Bitcoin Coffee',
   osm_address: 'Brno, Česko',
-  tags: [{ name: 'Začátečníci' }],
+  tags: [{ name: 'Začátečníci' }, { name: 'Praha' }],
   'meetup.portalLink': portalLink,
 })
 
@@ -70,7 +70,7 @@ test('configured scope returns one generated inline calendar with stable event m
   assert.equal(event?.getFirstPropertyValue('summary'), 'Brněnský meetup')
   assert.equal(event?.getFirstPropertyValue('status'), 'CONFIRMED')
   assert.equal(event?.getFirstPropertyValue('location'), 'Bitcoin Coffee, Brno, Česko')
-  assert.match(String(event?.getFirstPropertyValue('description')), /^\[Začátečníci\]\n\nPrvní řádek/)
+  assert.match(String(event?.getFirstPropertyValue('description')), /^\[Začátečníci\] \[Praha\]\n\nPrvní řádek/)
 })
 
 test('comma-separated and all-country scopes produce one calendar containing every selected community', async () => {
@@ -114,6 +114,23 @@ test('generated cancellation preserves UID and emits a higher sequence', () => {
   assert.equal(event?.getFirstPropertyValue('uid'), 'meetup-event-1@einundzwanzig.space')
   assert.equal(event?.getFirstPropertyValue('status'), 'CANCELLED')
   assert.equal(event?.getFirstPropertyValue('sequence'), 10)
+  const start = event?.getFirstPropertyValue<ICAL.Time>('dtstart')
+  const end = event?.getFirstPropertyValue<ICAL.Time>('dtend')
+  assert.equal(end?.toUnixTime(), (start?.toUnixTime() ?? 0) + 60 * 60)
+})
+
+test('cancellation wins when active and cancelled revisions have the same sequence', () => {
+  const active: PortalCalendarEvent = {
+    event: { id: '1', title: 'Stale active meetup', start: '2026-08-31T15:00:00.000Z', end: null, tags: [] },
+    sequence: 10,
+    changedAt: now.toISOString(),
+    cancelled: false,
+    community: brno,
+  }
+  const cancelled: PortalCalendarEvent = { ...active, cancelled: true }
+  const calendar = ICAL.Component.fromString(generateCalendar('Jednadvacet', [active, cancelled]))
+  assert.equal(calendar.getAllSubcomponents('vevent').length, 1)
+  assert.equal(calendar.getFirstSubcomponent('vevent')?.getFirstPropertyValue('status'), 'CANCELLED')
 })
 
 test('malformed, numeric, duplicate, unknown, and query-extended scopes fail safely', async () => {

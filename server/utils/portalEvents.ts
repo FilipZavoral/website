@@ -24,6 +24,10 @@ export interface PortalStorage {
   setItem(key: string, value: unknown): Promise<void>
 }
 
+export interface PortalCacheStorage extends PortalStorage {
+  removeItem(key: string): Promise<void>
+}
+
 export type PortalFetch = (url: string, options: { timeout: number, retry: number }) => Promise<unknown>
 
 /** Carries a safe HTTP status code for expected Portal integration failures. */
@@ -39,6 +43,12 @@ export class PortalEventsError extends Error {
 
 /** Returns the durable cache key owned by one Portal meetup. */
 export const portalEventCacheKey = (portalMeetupId: number) => `portal:${portalMeetupId}:events`
+
+/** Removes one configured community's cached Portal snapshot. */
+export const clearPortalEventCache = (
+  community: PortalCommunity,
+  storage: PortalCacheStorage,
+) => storage.removeItem(portalEventCacheKey(community.portalMeetupId))
 
 /** Narrows untrusted Portal and cache payload values to non-array objects. */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -117,12 +127,17 @@ const parseEvent = (value: unknown): PortalEvent => {
   const osmLon = parseCoordinate(value.osm_lon, -180, 180)
   const description = parseOptionalText(value.description)
   const image = parseLink(value['meetup.logo'])
+  const start = parseUtcWallClock(value.start, 'start')
+  const end = value.end === null ? null : parseUtcWallClock(value.end, 'end')
+  if (end && Date.parse(end) <= Date.parse(start)) {
+    throw new PortalEventsError('Portal event time range is invalid', 502)
+  }
   return {
     ...withoutMeetupMetadata(value),
     id: String(value.id),
     title,
-    start: parseUtcWallClock(value.start, 'start'),
-    end: value.end === null ? null : parseUtcWallClock(value.end, 'end'),
+    start,
+    end,
     ...(link !== undefined ? { link } : {}),
     ...(safeLink ? { safeLink } : {}),
     ...(location ? { location } : {}),
@@ -285,12 +300,16 @@ export const refreshPortalMeetups = async (
       .filter(row => isRecord(row) && row['meetup.portalLink'] === portalLink)
       .map(parseEvent), now)
     const previous = parseCache(await storage.getItem(portalEventCacheKey(community.portalMeetupId)))
+    const cancellations = (previous?.cancellations ?? [])
+      .filter(item => now.getTime() - Date.parse(item.cancelledAt) < cancellationRetentionMs)
+    const cancelledEventIds = new Set(cancellations.map(item => item.event.id))
     const previousEvents = new Map(previous?.events.map(item => [item.event.id, item]))
     const cache: CachedEvents = {
       schemaVersion: cacheSchemaVersion,
-      events: events.map(event => nextRevision(event, previousEvents.get(event.id), now)),
-      cancellations: (previous?.cancellations ?? [])
-        .filter(item => now.getTime() - Date.parse(item.cancelledAt) < cancellationRetentionMs),
+      events: events
+        .filter(event => !cancelledEventIds.has(event.id))
+        .map(event => nextRevision(event, previousEvents.get(event.id), now)),
+      cancellations,
       fetchedAt: now.toISOString(),
       validatedFromNonEmptySource: true,
     }
@@ -307,9 +326,9 @@ export const markPortalEventCancelled = async (
 ) => {
   const key = portalEventCacheKey(community.portalMeetupId)
   const cache = parseCache(await storage.getItem(key))
-  if (!cache) return
+  if (!cache) return false
   const active = cache.events.find(item => item.event.id === eventId)
-  if (!active) return
+  if (!active) return false
   const sequence = Math.max(active.sequence + 1, Math.floor(now.getTime() / 1_000))
   await storage.setItem(key, {
     ...cache,
@@ -319,6 +338,23 @@ export const markPortalEventCancelled = async (
       { ...active, sequence, changedAt: now.toISOString(), cancelledAt: now.toISOString() },
     ],
   } satisfies CachedEvents)
+  return true
+}
+
+/** Allows a later create/update webhook to restore an explicitly cancelled event ID. */
+export const clearPortalEventCancellation = async (
+  community: PortalCommunity,
+  eventId: string,
+  storage: PortalStorage,
+) => {
+  const key = portalEventCacheKey(community.portalMeetupId)
+  const cache = parseCache(await storage.getItem(key))
+  if (!cache || !cache.cancellations.some(item => item.event.id === eventId)) return false
+  await storage.setItem(key, {
+    ...cache,
+    cancellations: cache.cancellations.filter(item => item.event.id !== eventId),
+  } satisfies CachedEvents)
+  return true
 }
 
 const getPortalCaches = async (

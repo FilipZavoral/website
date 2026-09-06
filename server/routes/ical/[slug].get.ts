@@ -8,6 +8,7 @@ import {
   type PortalFetch,
   type PortalStorage,
 } from '../../utils/portalEvents.ts'
+import { projectCalendarEvent } from '../../utils/calendarEventProjection.ts'
 
 const publicSlugPattern = /^[a-z0-9][a-z0-9-]*$/
 const maxSelectedCommunities = 100
@@ -42,18 +43,6 @@ export const parsePublicCalendarScope = (scope: string | undefined, query: Recor
   return unique
 }
 
-const eventLocation = (event: PortalCalendarEvent['event']) => {
-  const venue = event.osm_name?.trim()
-  const address = event.osm_address?.trim()
-  if (venue && address && venue !== address) return `${venue}, ${address}`
-  return venue || address || event.location
-}
-
-const eventDescription = (event: PortalCalendarEvent['event']) => {
-  const tags = event.tags.flatMap(tag => typeof tag.name === 'string' && tag.name.trim() ? [tag.name.trim()] : [])
-  return [tags.length ? `[${tags.join(', ')}]` : '', event.description ?? ''].filter(Boolean).join('\n\n')
-}
-
 /** Projects cached Portal events into one standards-compliant calendar document. */
 export const generateCalendar = (name: string, events: readonly PortalCalendarEvent[], prefixCommunity = false) => {
   const calendar = new ICAL.Component('vcalendar')
@@ -67,24 +56,26 @@ export const generateCalendar = (name: string, events: readonly PortalCalendarEv
   for (const item of events) {
     const uid = `meetup-event-${item.event.id}@einundzwanzig.space`
     const previous = uniqueEvents.get(uid)
-    if (!previous || item.sequence > previous.sequence) uniqueEvents.set(uid, item)
+    if (!previous || item.sequence > previous.sequence
+      || (item.sequence === previous.sequence && item.cancelled && !previous.cancelled)) {
+      uniqueEvents.set(uid, item)
+    }
   }
 
   for (const [uid, item] of [...uniqueEvents].sort((left, right) =>
     Date.parse(left[1].event.start) - Date.parse(right[1].event.start) || left[0].localeCompare(right[0]))) {
+    const projected = projectCalendarEvent(item, prefixCommunity)
     const event = new ICAL.Component('vevent')
     event.addPropertyWithValue('uid', uid)
     event.addPropertyWithValue('dtstamp', ICAL.Time.fromJSDate(new Date(item.changedAt), true))
-    event.addPropertyWithValue('dtstart', ICAL.Time.fromJSDate(new Date(item.event.start), true))
-    if (item.event.end) event.addPropertyWithValue('dtend', ICAL.Time.fromJSDate(new Date(item.event.end), true))
-    event.addPropertyWithValue('summary', prefixCommunity ? `${item.community.title} - ${item.event.title}` : item.event.title)
+    event.addPropertyWithValue('dtstart', ICAL.Time.fromJSDate(new Date(projected.start), true))
+    event.addPropertyWithValue('dtend', ICAL.Time.fromJSDate(new Date(projected.end), true))
+    event.addPropertyWithValue('summary', projected.title)
     event.addPropertyWithValue('status', item.cancelled ? 'CANCELLED' : 'CONFIRMED')
     event.addPropertyWithValue('sequence', item.sequence)
-    const description = eventDescription(item.event)
-    const location = eventLocation(item.event)
-    if (description) event.addPropertyWithValue('description', description)
-    if (location) event.addPropertyWithValue('location', location)
-    if (item.event.safeLink) event.addPropertyWithValue('url', item.event.safeLink)
+    if (projected.description) event.addPropertyWithValue('description', projected.description)
+    if (projected.location) event.addPropertyWithValue('location', projected.location)
+    if (projected.url) event.addPropertyWithValue('url', projected.url)
     if (item.event.image) {
       const image = new ICAL.Property('image')
       image.resetType('uri')

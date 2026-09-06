@@ -1,9 +1,16 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from 'h3'
 import {
+  clearPortalEventCancellation,
+  getPortalCalendarEvents,
   getPortalCommunities,
   markPortalEventCancelled,
   refreshPortalMeetups,
 } from '../../utils/portalEvents.ts'
+import {
+  deleteGoogleCalendarEvent,
+  getGoogleCalendarConfig,
+  syncGoogleCalendarEvent,
+} from '../../utils/googleCalendar.ts'
 
 /**
  * Receives signed Portal change notifications and refreshes the affected community cache.
@@ -107,11 +114,32 @@ export default defineEventHandler(async (event) => {
   const community = (await getPortalCommunities(event)).find(item => item.portalMeetupId === meetupId)
   if (community) {
     const storage = useStorage('portalEvents')
+    const eventId = getPortalWebhookEventId(payload)
+    let cancellationStored = false
     if (eventName === 'meetup-event.deleted') {
-      const eventId = getPortalWebhookEventId(payload)
-      if (eventId) await markPortalEventCancelled(community, eventId, storage)
+      if (eventId) cancellationStored = await markPortalEventCancelled(community, eventId, storage)
+    } else if (eventId) {
+      await clearPortalEventCancellation(community, eventId, storage)
     }
     await refreshPortalMeetups([community], storage, $fetch)
+    if (eventName === 'meetup-event.deleted' && eventId && !cancellationStored) {
+      await markPortalEventCancelled(community, eventId, storage)
+    }
+    if (eventId) {
+      try {
+        const googleConfig = getGoogleCalendarConfig(config as unknown as Record<string, unknown>)
+        if (eventName === 'meetup-event.deleted') {
+          await deleteGoogleCalendarEvent(eventId, googleConfig)
+        } else {
+          const calendarEvent = (await getPortalCalendarEvents([community.id], [community], storage, $fetch))
+            .find(item => item.event.id === eventId && !item.cancelled)
+          if (calendarEvent) await syncGoogleCalendarEvent(calendarEvent, googleConfig)
+        }
+      } catch (error) {
+        console.error('Google Calendar webhook synchronization failed', error)
+        throw createError({ statusCode: 502, statusMessage: 'Google Calendar synchronization failed' })
+      }
+    }
   }
   return { ok: true }
 })

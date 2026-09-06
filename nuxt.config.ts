@@ -60,6 +60,11 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     portalWebhookSecret: process.env.NUXT_PORTAL_WEBHOOK_SECRET,
+    googleOAuthClientId: process.env.NUXT_GOOGLE_OAUTH_CLIENT_ID,
+    googleOAuthSecret: process.env.NUXT_GOOGLE_OAUTH_SECRET,
+    googleOAuthRefreshToken: process.env.NUXT_GOOGLE_OAUTH_REFRESH_TOKEN,
+    googleLegacyCalendarId: process.env.NUXT_GOOGLE_LEGACY_CALENDAR_ID,
+    eventsAdminToken: process.env.NUXT_EVENTS_ADMIN_TOKEN,
   },
 
   sitemap: {

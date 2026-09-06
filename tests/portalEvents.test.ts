@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  clearPortalEventCancellation,
   getPortalEvents,
   getPortalCalendarEvents,
   markPortalEventCancelled,
@@ -169,6 +170,15 @@ test('rejects an empty global Portal payload without caching it', async () => {
   assert.equal(values.has(portalEventCacheKey(brno.portalMeetupId)), false)
 })
 
+test('rejects equal or reversed event time ranges before caching', async () => {
+  for (const end of ['2026-08-31 15:00', '2026-08-31 14:00']) {
+    await assert.rejects(
+      getPortalEvents('brno', [brno], storage(), fetcher([event({ end })]), now),
+      (error: unknown) => error instanceof PortalEventsError && error.statusCode === 502,
+    )
+  }
+})
+
 test('refreshes an unvalidated empty snapshot but allows zero matches from a non-empty Portal payload', async () => {
   const values = new Map<string, unknown>([[portalEventCacheKey(brno.portalMeetupId), {
     events: [],
@@ -209,7 +219,7 @@ test('webhook-confirmed deletions remain calendar cancellations for 90 days', as
   const store = storage(values)
   await getPortalEvents('brno', [brno], store, fetcher([event()]), now)
   const cancelledAt = new Date('2026-08-31T12:00:00.000Z')
-  await markPortalEventCancelled(brno, '1', store, cancelledAt)
+  assert.equal(await markPortalEventCancelled(brno, '1', store, cancelledAt), true)
 
   const calendarEvents = await getPortalCalendarEvents(['brno'], [brno], store, async () => assert.fail('fresh cache must not fetch'), cancelledAt)
   assert.equal(calendarEvents.length, 1)
@@ -221,6 +231,37 @@ test('webhook-confirmed deletions remain calendar cancellations for 90 days', as
   ;(values.get(portalEventCacheKey(brno.portalMeetupId)) as { fetchedAt: string }).fetchedAt = afterRetention.toISOString()
   const expired = await getPortalCalendarEvents(['brno'], [brno], store, async () => assert.fail('fresh cache must not fetch'), afterRetention)
   assert.deepEqual(expired, [])
+})
+
+test('a cancellation suppresses stale Portal rows until a later webhook restores the event ID', async () => {
+  const values = new Map<string, unknown>()
+  const store = storage(values)
+  await refreshPortalMeetups([brno], store, fetcher([event()]), now)
+  const cancelledAt = new Date('2026-08-30T13:00:00.000Z')
+  await markPortalEventCancelled(brno, '1', store, cancelledAt)
+
+  await refreshPortalMeetups([brno], store, fetcher([event()]), new Date('2026-08-30T14:00:00.000Z'))
+  let calendarEvents = await getPortalCalendarEvents(['brno'], [brno], store, async () => assert.fail('fresh cache must not fetch'), cancelledAt)
+  assert.deepEqual(calendarEvents.map(item => ({ id: item.event.id, cancelled: item.cancelled })), [
+    { id: '1', cancelled: true },
+  ])
+
+  assert.equal(await clearPortalEventCancellation(brno, '1', store), true)
+  await refreshPortalMeetups([brno], store, fetcher([event({ title: 'Obnovený meetup' })]), new Date('2026-08-30T15:00:00.000Z'))
+  calendarEvents = await getPortalCalendarEvents(['brno'], [brno], store, async () => assert.fail('fresh cache must not fetch'), cancelledAt)
+  assert.deepEqual(calendarEvents.map(item => ({ title: item.event.title, cancelled: item.cancelled })), [
+    { title: 'Obnovený meetup', cancelled: false },
+  ])
+})
+
+test('a cold delete can become a tombstone after stale upstream data is refreshed', async () => {
+  const values = new Map<string, unknown>()
+  const store = storage(values)
+  assert.equal(await markPortalEventCancelled(brno, '1', store, now), false)
+  await refreshPortalMeetups([brno], store, fetcher([event()]), now)
+  assert.equal(await markPortalEventCancelled(brno, '1', store, now), true)
+  const calendarEvents = await getPortalCalendarEvents(['brno'], [brno], store, async () => assert.fail('fresh cache must not fetch'), now)
+  assert.equal(calendarEvents[0]?.cancelled, true)
 })
 
 test('calendar sequence remains stable until relevant event content changes', async () => {
