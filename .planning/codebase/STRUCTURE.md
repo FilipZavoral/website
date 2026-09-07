@@ -99,7 +99,7 @@ Generated or local-only directories include `node_modules/`, `.nuxt/`, `.output/
 
 **Content/MDC components:** `app/components/HomepageHero.vue`, `app/components/content/Calendar.vue`, `app/components/PartnersList.vue`, and `app/components/DonateBlock.vue`.
 
-**Reusable display components:** `app/components/AuthorBlock.vue`, `app/components/CategoriesBadges.vue`, `app/components/SocialLinks.vue`, and `app/components/CommunityMap.vue`.
+**Reusable display components:** `app/components/PersonBlock.vue`, `app/components/CategoriesBadges.vue`, `app/components/SocialLinks.vue`, and `app/components/CommunityMap.vue`.
 
 ## Content Organization
 
@@ -107,7 +107,7 @@ Generated or local-only directories include `node_modules/`, `.nuxt/`, `.output/
 - `content/blog-categories/`: 12 category documents routed under `/blog`.
 - `content/pages/`: 6 root page documents, including `content/pages/index.md` and `content/pages/kalendar.md`.
 - `content/communities/`: 51 community documents routed at root paths.
-- `content/people/`: 11 author/organizer records queried by `app/components/AuthorBlock.vue` and `app/pages/lide.vue` without a standalone people catch-all route.
+- `content/people/`: 11 author/organizer records queried by `app/components/PersonBlock.vue` and `app/pages/lide.vue` without a standalone people catch-all route.
 - `content.config.ts`: Defines all five collections; only the four routed collections participate in `shared/data/contentRouteSources.ts` and route-collision validation.
 
 ## Naming Conventions

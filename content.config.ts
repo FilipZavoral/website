@@ -61,7 +61,7 @@ export default defineContentConfig({
         map: property(z.object({
           lat: z.number().finite().min(48).max(52),
           lng: z.number().finite().min(12).max(19),
-          zoom: z.number().finite().optional(),
+          zoom: z.number().finite().min(0).max(22).optional(),
         }).optional()).editor({ description: 'Najdi ideální souřadnice a zoom tak aby byly vidět všechny důležité body na mapě: https://labs.mapbox.com/location-helper/' }),
         signal_group: z.string().url(),
         portal_meetup_id: z.number().int().nonnegative().optional(),

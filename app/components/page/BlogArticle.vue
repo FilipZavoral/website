@@ -44,7 +44,7 @@ const config = useRuntimeConfig()
         <USeparator v-if="article.authors?.length" class="my-6" />
 
         <div v-if="article.authors?.length" class="authors space-y-4">
-          <AuthorBlock v-for="authorId in article.authors" :key="authorId" :author-id="authorId" />
+          <PersonBlock v-for="authorSlug in article.authors" :key="authorSlug" :slug="authorSlug" />
         </div>
       </UPageBody>
 

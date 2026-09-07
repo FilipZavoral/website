@@ -1,4 +1,5 @@
 const isPreviewDeploy = Boolean(process.env.PREVIEW_DEPLOY)
+const communityMapsCron = '17 3 * * *'
 
 const studioIconLibraries = ['bitcoin-icons', 'lucide', 'pinhead', 'simple-icons', 'streamline']
 
@@ -65,6 +66,8 @@ export default defineNuxtConfig({
     googleOauthRefreshToken: '',
     googleLegacyCalendarId: '',
     eventsAdminToken: '',
+    mapboxAccessToken: '',
+    mapboxStyle: 'mapbox/dark-v10',
   },
 
   sitemap: {
@@ -74,6 +77,13 @@ export default defineNuxtConfig({
 
   hub: {
     db: 'sqlite',
+    // Preview builds compile Blob support for the protected route but receive
+    // no production R2 binding. Their rendered pages read the public CDN.
+    blob: isPreviewDeploy
+      ? { driver: 'cloudflare-r2', binding: 'BLOB' }
+      : process.env.NODE_ENV === 'production'
+        ? { driver: 'cloudflare-r2', binding: 'BLOB', bucketName: 'files-jednadvacet-org' }
+        : { driver: 'fs', dir: '.data/blob' },
   },
 
   image: {
@@ -98,6 +108,15 @@ export default defineNuxtConfig({
   },
 
   nitro: {
+    experimental: {
+      tasks: true,
+    },
+    // Scheduled runs refresh every community; manual task payloads can select one slug.
+    scheduledTasks: isPreviewDeploy
+      ? {}
+      : {
+          [communityMapsCron]: 'community-maps',
+        },
     devStorage: {
       miners: {
         driver: 'fs',
@@ -162,6 +181,11 @@ export default defineNuxtConfig({
                 id: '5e0aa50166db40ae8414c83614dbae4d',
               },
             ],
+        triggers: isPreviewDeploy
+          ? undefined
+          : {
+              crons: [communityMapsCron],
+            },
         observability: cloudflareObservability,
       }
     },

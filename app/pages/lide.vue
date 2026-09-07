@@ -18,10 +18,10 @@ const { data } = await useAsyncData('people-list', async () => {
 
       <UPageBody>
         <div class="divide-y divide-default">
-          <AuthorBlock
+          <PersonBlock
             v-for="person in data"
             :key="person.path"
-            :author-id="person.path.replace('/people/', '')"
+            :slug="person.path.replace('/people/', '')"
           />
         </div>
       </UPageBody>
