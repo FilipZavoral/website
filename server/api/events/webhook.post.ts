@@ -1,8 +1,16 @@
 import { createError, defineEventHandler, getHeader, readRawBody } from 'h3'
 import {
+  clearPortalEventCancellation,
+  getPortalCalendarEvents,
   getPortalCommunities,
+  markPortalEventCancelled,
   refreshPortalMeetups,
 } from '../../utils/portalEvents.ts'
+import {
+  deleteGoogleCalendarEvent,
+  getGoogleCalendarConfig,
+  syncGoogleCalendarEvent,
+} from '../../utils/googleCalendar.ts'
 
 /**
  * Receives signed Portal change notifications and refreshes the affected community cache.
@@ -64,6 +72,14 @@ export const getPortalWebhookMeetupId = (payload: Record<string, unknown>) => {
   return null
 }
 
+/** Extracts the affected Portal event ID when the webhook addresses an event. */
+export const getPortalWebhookEventId = (payload: Record<string, unknown>) => {
+  if (payload.resource !== 'meetup-event') return null
+  if (isRecord(payload.data) && Number.isSafeInteger(payload.data.id)) return String(payload.data.id)
+  if (isRecord(payload.previous) && Number.isSafeInteger(payload.previous.id)) return String(payload.previous.id)
+  return null
+}
+
 /** Validates a Portal webhook envelope and refreshes its configured community when applicable. */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
@@ -96,6 +112,34 @@ export default defineEventHandler(async (event) => {
   }
 
   const community = (await getPortalCommunities(event)).find(item => item.portalMeetupId === meetupId)
-  if (community) await refreshPortalMeetups([community], useStorage('portalEvents'), $fetch)
+  if (community) {
+    const storage = useStorage('portalEvents')
+    const eventId = getPortalWebhookEventId(payload)
+    let cancellationStored = false
+    if (eventName === 'meetup-event.deleted') {
+      if (eventId) cancellationStored = await markPortalEventCancelled(community, eventId, storage)
+    } else if (eventId) {
+      await clearPortalEventCancellation(community, eventId, storage)
+    }
+    await refreshPortalMeetups([community], storage, $fetch)
+    if (eventName === 'meetup-event.deleted' && eventId && !cancellationStored) {
+      await markPortalEventCancelled(community, eventId, storage)
+    }
+    if (eventId) {
+      try {
+        const googleConfig = getGoogleCalendarConfig(config as unknown as Record<string, unknown>)
+        if (eventName === 'meetup-event.deleted') {
+          await deleteGoogleCalendarEvent(eventId, googleConfig)
+        } else {
+          const calendarEvent = (await getPortalCalendarEvents([community.id], [community], storage, $fetch))
+            .find(item => item.event.id === eventId && !item.cancelled)
+          if (calendarEvent) await syncGoogleCalendarEvent(calendarEvent, googleConfig)
+        }
+      } catch (error) {
+        console.error('Google Calendar webhook synchronization failed', error)
+        throw createError({ statusCode: 502, statusMessage: 'Google Calendar synchronization failed' })
+      }
+    }
+  }
   return { ok: true }
 })

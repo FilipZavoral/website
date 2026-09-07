@@ -78,10 +78,16 @@ const selectedCommunities = computed(() => {
 })
 const hasSelectedScope = computed(() => selectedCommunities.value.length > 0)
 const currentOrigin = ref(useRequestURL().origin)
-const calendarUrls = computed(() => selectedCommunities.value.map(community => ({
-  title: community.title,
-  url: `${currentOrigin.value}/ical/${encodeURIComponent(community.path.replace(/^\//, ''))}`,
-})))
+const calendarUrls = computed(() => {
+  if (!hasSelectedScope.value) return []
+  const scope = selectedCommunitySlugs.value.includes(wholeCountryValue)
+    ? 'all'
+    : selectedCommunities.value.map(community => community.path.replace(/^\//, '')).sort().join(',')
+  return [{
+    title: selectedScopeSummary.value,
+    url: `${currentOrigin.value}/ical/${scope}`,
+  }]
+})
 const hasTelephone = computed(() => telephone.value.trim().length > 0)
 const hasEmail = computed(() => email.value.trim().length > 0)
 const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.includes(wholeCountryValue)
@@ -89,9 +95,9 @@ const selectedScopeSummary = computed(() => selectedCommunitySlugs.value.include
   : selectedCommunities.value.map(community => community.title).join(', '))
 
 const frequencyChoices = [
-  { value: 'created', label: 'při vytvoření události', summary: 'Upozornění při vytvoření události' },
-  { value: 'week-before', label: 'týden předem', summary: 'Upozornění týden předem' },
-  { value: 'day-before', label: 'den předem', summary: 'Upozornění den předem' },
+  { value: 'created', label: 'při vytvoření události' },
+  { value: 'week-before', label: 'týden předem' },
+  { value: 'day-before', label: 'den předem' },
 ] as const
 type FrequencyValue = typeof frequencyChoices[number]['value']
 
@@ -99,7 +105,7 @@ const selectedFrequencies = ref<FrequencyValue[]>(['created'])
 const isEditingFrequency = ref(false)
 const frequencySummary = computed(() => frequencyChoices
   .filter(choice => selectedFrequencies.value.includes(choice.value))
-  .map(choice => choice.summary)
+  .map(choice => choice.label)
   .join(', '))
 
 const setFrequency = (value: FrequencyValue, checked: boolean | 'indeterminate') => {
@@ -166,7 +172,7 @@ onMounted(() => {
 
 <template>
   <section
-    class="mx-auto max-w-[720px] space-y-8"
+    class="mx-auto w-full min-w-0 max-w-[720px] space-y-8"
     :aria-labelledby="directEntry ? 'subscription-guide-title' : undefined"
   >
     <div v-if="directEntry" class="space-y-2">
@@ -234,128 +240,111 @@ onMounted(() => {
       </div>
 
       <template v-for="(method, index) in futureMethods" :key="method.title">
-        <UPageCard>
-          <template #header>
-            <h3 class="text-xl font-semibold leading-tight">{{ method.title }}</h3>
+        <section class="space-y-4">
+          <h3 class="text-xl font-semibold leading-tight">{{ method.title }}</h3>
+          <p>{{ method.description }}</p>
+
+          <template v-if="method.title === 'SMS'">
+            <UFormField label="Telefonní číslo" name="telephone">
+              <UInput
+                v-model="telephone"
+                type="tel"
+                autocomplete="tel"
+                class="w-full"
+              />
+            </UFormField>
+            <UButton color="neutral" :disabled="!hasSelectedScope || !hasTelephone" @click="expressSmsInterest">Mám zájem o SMS</UButton>
           </template>
 
-          <template #body>
-            <div class="space-y-4">
-              <p>{{ method.description }}</p>
-
-              <template v-if="method.title === 'SMS'">
-                <div class="space-y-2">
-                  <label for="subscription-telephone" class="text-sm font-semibold">Telefonní číslo</label>
-                  <UInput
-                    id="subscription-telephone"
-                    v-model="telephone"
-                    type="tel"
-                    autocomplete="tel"
-                    aria-describedby="subscription-telephone-privacy"
-                  />
-                  <p id="subscription-telephone-privacy" class="text-sm text-muted">Číslo zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
-                </div>
-                <UButton color="neutral" :disabled="!hasSelectedScope || !hasTelephone" @click="expressSmsInterest">Mám zájem o SMS</UButton>
-              </template>
-
-              <template v-else-if="method.title === 'E-mail'">
-                <div class="space-y-2">
-                  <label for="subscription-email" class="text-sm font-semibold">E-mail</label>
-                  <UInput
-                    id="subscription-email"
-                    v-model="email"
-                    type="email"
-                    autocomplete="email"
-                    aria-describedby="subscription-email-privacy"
-                  />
-                  <p id="subscription-email-privacy" class="text-sm text-muted">E-mail zůstává pouze v tomto prohlížeči. Kdykoli ho smažete, odstraní se i z místního úložiště.</p>
-                </div>
-                <UButton color="neutral" :disabled="!hasSelectedScope || !hasEmail" @click="expressEmailInterest">Mám zájem o e-mail</UButton>
-              </template>
-
-              <UButton v-else color="neutral" :disabled="!hasSelectedScope" @click="expressWebInterest">Mám zájem o oznámení ve webu</UButton>
-            </div>
+          <template v-else-if="method.title === 'E-mail'">
+            <UFormField label="E-mail" name="email">
+              <UInput
+                v-model="email"
+                type="email"
+                autocomplete="email"
+                class="w-full"
+              />
+            </UFormField>
+            <UButton color="neutral" :disabled="!hasSelectedScope || !hasEmail" @click="expressEmailInterest">Mám zájem o e-mail</UButton>
           </template>
-        </UPageCard>
+
+          <UButton v-else color="neutral" :disabled="!hasSelectedScope" @click="expressWebInterest">Mám zájem o oznámení ve webu</UButton>
+        </section>
         <USeparator v-if="index < futureMethods.length - 1" label="nebo" />
       </template>
 
       <USeparator label="nebo" />
-      <UPageCard>
-        <template #header>
-          <h3 class="text-xl font-semibold leading-tight">Kalendářový feed</h3>
-        </template>
+      <section class="min-w-0 space-y-4">
+        <h3 class="text-xl font-semibold leading-tight">Kalendářový feed</h3>
+        <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
+        <p v-if="hasSelectedScope" class="text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
+        <p v-else class="text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
 
-        <template #body>
-          <div class="min-w-0 space-y-4">
-            <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
-          <p v-if="hasSelectedScope" class="text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
-          <p v-else class="text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
-
-          <div v-if="hasSelectedScope" class="space-y-4">
-            <div v-for="calendar in calendarUrls" :key="calendar.url" class="space-y-2">
-              <p class="text-sm font-semibold text-highlighted">{{ calendar.title }}</p>
-              <div class="flex min-w-0">
-                <code
-                  tabindex="0"
-                  :aria-label="`Adresa kalendáře pro ${calendar.title}`"
-                  class="min-w-0 flex-1 select-all break-all rounded-s-md border border-e-0 border-default bg-elevated px-3 py-2 text-sm"
-                >{{ calendar.url }}</code>
-                <UButton
-                  color="primary"
-                  :icon="copiedCalendarUrl === calendar.url ? 'i-lucide-check' : undefined"
-                  class="shrink-0 justify-center rounded-s-none"
-                  @click="copyCalendarUrl(calendar.url)"
-                >
-                  {{ copiedCalendarUrl === calendar.url ? 'Zkopírováno' : 'Kopírovat' }}
-                </UButton>
-              </div>
+        <div v-if="hasSelectedScope" class="space-y-4">
+          <div v-for="calendar in calendarUrls" :key="calendar.url" class="space-y-2">
+            <p class="text-sm font-semibold text-highlighted">{{ calendar.title }}</p>
+            <div class="flex min-w-0">
+              <code
+                tabindex="0"
+                :aria-label="`Adresa kalendáře pro ${calendar.title}`"
+                class="min-w-0 flex-1 select-all overflow-hidden text-ellipsis whitespace-nowrap rounded-s-md border border-e-0 border-default bg-elevated px-3 py-2 text-xs"
+              >{{ calendar.url }}</code>
+              <UButton
+                color="primary"
+                square
+                :aria-label="copiedCalendarUrl === calendar.url ? 'Adresa zkopírována' : 'Kopírovat adresu kalendáře'"
+                :title="copiedCalendarUrl === calendar.url ? 'Adresa zkopírována' : 'Kopírovat adresu kalendáře'"
+                class="shrink-0 justify-center rounded-s-none"
+                @click="copyCalendarUrl(calendar.url)"
+              >
+                <UIcon v-show="copiedCalendarUrl !== calendar.url" name="i-lucide-copy" class="size-5" />
+                <UIcon v-show="copiedCalendarUrl === calendar.url" name="i-lucide-check" class="size-5" />
+              </UButton>
             </div>
           </div>
+        </div>
 
-          <UAlert
-            v-if="copyError"
-            role="status"
-            aria-live="polite"
-            color="neutral"
-            variant="subtle"
-            :title="copyError"
-          />
+        <UAlert
+          v-if="copyError"
+          role="status"
+          aria-live="polite"
+          color="neutral"
+          variant="subtle"
+          :title="copyError"
+        />
 
-          <div class="space-y-2 text-sm text-muted">
-            <p>Přihlášení k odběru přes adresu URL udržuje kalendář aktuální. Stažený soubor .ics je jen jednorázová kopie.</p>
-            <p>Čas obnovení určuje vaše kalendářová aplikace.</p>
-          </div>
+        <div class="space-y-2 text-sm text-muted">
+          <p>Přihlášení k odběru přes adresu URL udržuje kalendář aktuální. Stažený soubor .ics je jen jednorázová kopie.</p>
+          <p>Čas obnovení určuje vaše kalendářová aplikace.</p>
+        </div>
 
-            <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
-            <UPopover>
-              <UButton icon="i-simple-icons-googlecalendar" color="neutral" variant="ghost" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
-              <template #content>
-                <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevřete Další kalendáře → Přidat další kalendáře → Z adresy URL. Vložte zkopírovanou adresu a potvrďte Přidat kalendář.</p>
-              </template>
-            </UPopover>
-            <UPopover>
-              <UButton icon="i-simple-icons-apple" color="neutral" variant="ghost" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
-              <template #content>
-                <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vložte adresu URL.</p>
-              </template>
-            </UPopover>
-            <UPopover>
-              <UButton icon="i-simple-icons-microsoftoutlook" color="neutral" variant="ghost" class="size-11" aria-label="Outlook" title="Outlook" />
-              <template #content>
-                <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyberte Přidat kalendář → Přihlásit se k odběru z webu, vložte adresu a uložte. Nevolte Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
-              </template>
-            </UPopover>
-            <UPopover>
-              <UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
-              <template #content>
-                <p class="max-w-sm p-3 text-sm">V aplikaci hledejte volbu jako Přihlásit se k odběru kalendáře, Přidat kalendář z URL nebo Síťový kalendář. Vložte zkopírovanou adresu jako nový odebíraný kalendář.</p>
-              </template>
-            </UPopover>
-            </div>
-          </div>
-        </template>
-      </UPageCard>
+        <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
+          <UPopover>
+            <UButton icon="i-simple-icons-googlecalendar" color="neutral" variant="ghost" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
+            <template #content>
+              <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevřete Další kalendáře → Přidat další kalendáře → Z adresy URL. Vložte zkopírovanou adresu a potvrďte Přidat kalendář.</p>
+            </template>
+          </UPopover>
+          <UPopover>
+            <UButton icon="i-simple-icons-apple" color="neutral" variant="ghost" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
+            <template #content>
+              <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vložte adresu URL.</p>
+            </template>
+          </UPopover>
+          <UPopover>
+            <UButton icon="i-simple-icons-microsoftoutlook" color="neutral" variant="ghost" class="size-11" aria-label="Outlook" title="Outlook" />
+            <template #content>
+              <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyberte Přidat kalendář → Přihlásit se k odběru z webu, vložte adresu a uložte. Nevolte Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
+            </template>
+          </UPopover>
+          <UPopover>
+            <UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
+            <template #content>
+              <p class="max-w-sm p-3 text-sm">V aplikaci hledejte volbu jako Přihlásit se k odběru kalendáře, Přidat kalendář z URL nebo Síťový kalendář. Vložte zkopírovanou adresu jako nový odebíraný kalendář.</p>
+            </template>
+          </UPopover>
+        </div>
+      </section>
     </div>
   </section>
 </template>

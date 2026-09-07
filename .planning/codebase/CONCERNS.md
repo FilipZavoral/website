@@ -98,11 +98,11 @@ last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 
 ## Performance Bottlenecks
 
-**Author blocks repeat full collection queries:**
-- Problem: Every `AuthorBlock` query loads all articles and communities, then filters locally.
-- Files: `app/components/AuthorBlock.vue`, `app/pages/lide.vue`, `app/components/page/BlogArticle.vue`, `app/components/page/Community.vue`
-- Cause: The async-data key includes each author ID, so a people page with many authors performs the same large collection scans repeatedly.
-- Improvement path: Load shared author relationships once at the page/list boundary or add a projection/composable with an explicit shared cache key.
+**Person blocks repeat full collection queries:**
+- Problem: Every `PersonBlock` query loads all articles and communities, then filters locally.
+- Files: `app/components/PersonBlock.vue`, `app/pages/lide.vue`, `app/components/page/BlogArticle.vue`, `app/components/page/Community.vue`
+- Cause: The async-data key includes each person slug, so a people page with many people performs the same large collection scans repeatedly.
+- Improvement path: Load shared person relationships once at the page/list boundary or add a projection/composable with an explicit shared cache key.
 
 **All-community calendar refresh scales linearly with configured communities:**
 - Problem: One stale community causes the all-calendar path to fetch full Portal datasets and write one cache entry per community.
@@ -137,7 +137,7 @@ last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 - Test coverage: Core normalization and webhook signature behavior are covered; HTTP handler behavior, concurrency, limits, and real Portal schema drift are not.
 
 **Cloudflare/Node dependency boundary:**
-- Files: `nuxt.config.ts`, `package.json`, `app/components/AuthorBlock.vue`, `nuxt.config.ts`
+- Files: `nuxt.config.ts`, `package.json`, `app/components/PersonBlock.vue`, `nuxt.config.ts`
 - Why fragile: Cloudflare uses `cloudflare_module`, while Nuxt Studio/IPX transitively brings `sharp`; the config aliases `sharp` to an unenv proxy. QR generation and development tooling still depend on Node-oriented packages.
 - Safe modification: Run both standard and Cloudflare builds after dependency/config changes and avoid Node-native APIs in `server/` code.
 - Test coverage: No committed deployment smoke test validates the generated Worker in an actual Cloudflare environment.
@@ -189,7 +189,7 @@ last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 
 **Interactive UI behavior:**
 - What's not tested: Map click/keyboard activation, pointer pan/pinch transitions, responsive height changes, modal QR generation, and calendar loading/error states.
-- Files: `app/components/CommunityMap.vue`, `app/components/content/Calendar.vue`, `app/components/AuthorBlock.vue`
+- Files: `app/components/CommunityMap.vue`, `app/components/content/Calendar.vue`, `app/components/PersonBlock.vue`
 - Risk: Accessibility and mobile regressions can pass typechecking unnoticed.
 - Priority: Medium
 

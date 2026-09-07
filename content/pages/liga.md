@@ -117,7 +117,7 @@ Nemusíš připravovat otázky ani vymýšlet pravidla. Dostaneš kvíz, odpově
 title: Organizátoři BTC Ligy
 ---
 
-:author-block{author-id="mara"}
+:person-block{slug="mara"}
 
-:author-block{author-id="tomas-bures"}
+:person-block{slug="tomas-bures"}
 ::

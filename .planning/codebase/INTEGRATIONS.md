@@ -88,7 +88,7 @@ last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 - Server-side GET requests to Portal meetup and event APIs with a five-second timeout and no retries (`server/utils/portalEvents.ts`).
 - Browser analytics requests are sent through `/cntrsclc` to Counterscale (`app/plugins/counterscale.client.ts`, `nuxt.config.ts`).
 - Social, event, and author links navigate to third-party sites including Nostr, X, Facebook, Instagram, YouTube, GitHub, WhatsApp, and arbitrary HTTPS URLs according to `app/components/SocialLinks.vue`.
-- Lightning donations use `lightning:` URI links and locally generated QR codes; no payment processor API is called (`app/components/DonateBlock.vue`, `app/components/AuthorBlock.vue`).
+- Lightning donations use `lightning:` URI links and locally generated QR codes; no payment processor API is called (`app/components/DonateBlock.vue`, `app/components/PersonBlock.vue`).
 
 ---
 

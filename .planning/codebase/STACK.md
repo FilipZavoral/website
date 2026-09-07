@@ -54,7 +54,7 @@ last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
 - `nuxt-studio` `^1.5.1` - GitHub-backed content editing configuration (`nuxt.config.ts`).
 - `drizzle-orm` `^0.45.1` and `drizzle-kit` `^0.31.9` - database tooling available through NuxtHub; no application-owned schema files are present.
 - `@counterscale/tracker` `^3.4.1` - browser analytics initialized in `app/plugins/counterscale.client.ts`.
-- `qrcode` `^1.5.4` - client/server-safe QR generation for Lightning donation addresses (`app/components/DonateBlock.vue`, `app/components/AuthorBlock.vue`).
+- `qrcode` `^1.5.4` - client/server-safe QR generation for Lightning donation addresses (`app/components/DonateBlock.vue`, `app/components/PersonBlock.vue`).
 
 **Infrastructure:**
 - `@vueuse/nuxt` / `@vueuse/core` `^14.2.1` - Nuxt-integrated Vue composables.

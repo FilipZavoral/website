@@ -266,7 +266,7 @@ The route layer imports generated collection item types from `@nuxt/content`, fo
   - `app/components/page/BlogCategory.vue`
   - `app/components/page/Community.vue`
 - Shared content helpers live directly under `app/components/`:
-  - `app/components/AuthorBlock.vue`
+  - `app/components/PersonBlock.vue`
   - `app/components/CategoriesBadges.vue`
   - `app/components/SocialLinks.vue`
 

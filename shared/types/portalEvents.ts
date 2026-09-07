@@ -27,6 +27,7 @@ export interface PortalEvent extends Record<string, unknown> {
   osm_lat?: string
   osm_lon?: string
   description?: string
+  image?: string
   tags: PortalEventTag[]
   community?: PortalEventCommunity
 }
