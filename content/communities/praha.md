@@ -8,7 +8,8 @@ map:
 signal_group: https://signal.group/#CjQKIBUtV3CVWFw8ZPGHABDTmHt6eSF-uPTIIvp-XCO5peClEhDchciJTqDpSIMbb9Gc68b7
 portal_meetup_id: 365
 organizers:
-  - filip
+  - filipzavoral
 ---
+
 ::calendar{community="praha"}
 ::
