@@ -29,11 +29,13 @@ test('meetup IDs resolve from current objects and deletion tombstones', () => {
   assert.equal(getPortalWebhookMeetupId({ resource: 'meetup-event', data: { meetup_id: 360 } }), 360)
   assert.equal(getPortalWebhookMeetupId({ resource: 'meetup-event', data: null, previous: { meetup_id: 360 } }), 360)
   assert.equal(getPortalWebhookMeetupId({ resource: 'meetup', data: { id: 360 } }), 360)
+  assert.equal(getPortalWebhookMeetupId({ resource: 'meetup', id: 361, data: null, previous: { slug: 'removed' } }), 361)
   assert.equal(getPortalWebhookMeetupId({ resource: 'meetup-event', data: {} }), null)
 })
 
 test('event IDs resolve from current objects and deletion tombstones', () => {
   assert.equal(getPortalWebhookEventId({ resource: 'meetup-event', data: { id: 42 } }), '42')
   assert.equal(getPortalWebhookEventId({ resource: 'meetup-event', data: null, previous: { id: 43 } }), '43')
+  assert.equal(getPortalWebhookEventId({ resource: 'meetup-event', id: 44, data: null, previous: { meetup_id: 360 } }), '44')
   assert.equal(getPortalWebhookEventId({ resource: 'meetup', data: { id: 42 } }), null)
 })

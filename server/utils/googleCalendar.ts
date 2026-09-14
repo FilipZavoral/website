@@ -291,6 +291,46 @@ export const deleteGoogleCalendarEvent = async (
   fetcher: GoogleFetch = fetch,
 ) => deleteWithToken(portalEventId, config, fetcher, await accessToken(config, fetcher))
 
+/** Applies one coalesced queue batch while sharing a single OAuth access token. */
+export const syncGoogleCalendarChanges = async (
+  events: readonly PortalCalendarEvent[],
+  config: GoogleCalendarConfig,
+  fetcher: GoogleFetch = fetch,
+  deletedEventIds: readonly string[] = [],
+): Promise<GoogleCalendarSyncReport> => {
+  const resolved = new Map<string, PortalCalendarEvent>()
+  for (const item of events) {
+    const previous = resolved.get(item.event.id)
+    if (!previous || item.sequence > previous.sequence
+      || (item.sequence === previous.sequence && item.cancelled && !previous.cancelled)) {
+      resolved.set(item.event.id, item)
+    }
+  }
+  const deletions = deletedEventIds.filter(eventId => !resolved.has(eventId))
+  if (resolved.size === 0 && deletions.length === 0) return { created: 0, updated: 0, deleted: 0 }
+
+  const token = await accessToken(config, fetcher)
+  const report: GoogleCalendarSyncReport = { created: 0, updated: 0, deleted: 0 }
+  const operations = [...resolved.values()].map(item => async () => {
+    if (item.cancelled) {
+      if (await deleteWithToken(item.event.id, config, fetcher, token)) report.deleted += 1
+      return
+    }
+    const result = await upsertWithToken(item, config, fetcher, token)
+    report[result] += 1
+  })
+  operations.push(...deletions.map(eventId => async () => {
+    if (await deleteWithToken(eventId, config, fetcher, token)) report.deleted += 1
+  }))
+  const failures: unknown[] = []
+  for (let index = 0; index < operations.length; index += 5) {
+    const results = await Promise.allSettled(operations.slice(index, index + 5).map(operation => operation()))
+    failures.push(...results.flatMap(result => result.status === 'rejected' ? [result.reason] : []))
+  }
+  if (failures.length > 0) throw new GoogleCalendarError(`Google Calendar synchronization failed for ${failures.length} operation(s)`)
+  return report
+}
+
 /** Rewrites all current Portal events and removes only stale future events owned by this integration. */
 export const reconcileGoogleCalendar = async (
   events: readonly PortalCalendarEvent[],

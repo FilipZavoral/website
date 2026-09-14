@@ -1,21 +1,10 @@
-import { createError, defineEventHandler, getHeader, readRawBody } from 'h3'
-import {
-  clearPortalEventCancellation,
-  getPortalCalendarEvents,
-  getPortalCommunities,
-  markPortalEventCancelled,
-  refreshPortalMeetups,
-} from '../../utils/portalEvents.ts'
-import {
-  deleteGoogleCalendarEvent,
-  getGoogleCalendarConfig,
-  GoogleCalendarError,
-  syncGoogleCalendarEvent,
-} from '../../utils/googleCalendar.ts'
+import { createError, defineEventHandler, getHeader, readRawBody, setResponseStatus } from 'h3'
+import type { PortalChangeAction } from '../../utils/portalEvents.ts'
+import type { PortalEventsQueue } from '../../utils/portalEventsQueue.ts'
 
 /**
- * Receives signed Portal change notifications and refreshes the affected community cache.
- * The webhook body is never applied directly; an authenticated notification triggers an authoritative refresh.
+ * Receives signed Portal change notifications and queues an authoritative cache refresh.
+ * The webhook body is never applied directly to a public snapshot.
  */
 const maxTimestampSkewSeconds = 5 * 60
 const encoder = new TextEncoder()
@@ -65,6 +54,7 @@ export const isPortalWebhookSignatureValid = async (
 /** Extracts the affected meetup ID from current data or deletion tombstone data. */
 export const getPortalWebhookMeetupId = (payload: Record<string, unknown>) => {
   if (payload.resource === 'meetup') {
+    if (Number.isSafeInteger(payload.id)) return payload.id as number
     if (isRecord(payload.data) && Number.isSafeInteger(payload.data.id)) return payload.data.id as number
     if (isRecord(payload.previous) && Number.isSafeInteger(payload.previous.id)) return payload.previous.id as number
   }
@@ -76,20 +66,22 @@ export const getPortalWebhookMeetupId = (payload: Record<string, unknown>) => {
 /** Extracts the affected Portal event ID when the webhook addresses an event. */
 export const getPortalWebhookEventId = (payload: Record<string, unknown>) => {
   if (payload.resource !== 'meetup-event') return null
+  if (Number.isSafeInteger(payload.id)) return String(payload.id)
   if (isRecord(payload.data) && Number.isSafeInteger(payload.data.id)) return String(payload.data.id)
   if (isRecord(payload.previous) && Number.isSafeInteger(payload.previous.id)) return String(payload.previous.id)
   return null
 }
 
-/** Validates a Portal webhook envelope and refreshes its configured community when applicable. */
+/** Validates a Portal webhook envelope and queues its change metadata. */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig(event)
   const secret = config.portalWebhookSecret
   const eventName = getHeader(event, 'x-portal-event')
+  const deliveryId = getHeader(event, 'x-portal-delivery')
   const timestamp = getHeader(event, 'x-portal-timestamp')
   const signature = getHeader(event, 'x-portal-signature')
   const rawBody = await readRawBody(event)
-  if (!secret || !eventName || !timestamp || !signature || rawBody === undefined) {
+  if (!secret || !eventName || !deliveryId || !timestamp || !signature || rawBody === undefined) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid Portal webhook' })
   }
 
@@ -108,45 +100,30 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid Portal webhook payload' })
   }
   const meetupId = getPortalWebhookMeetupId(payload)
-  if (meetupId === null) {
-    throw createError({ statusCode: 400, statusMessage: 'Portal webhook has no meetup ID' })
+  const sequence = payload.sequence
+  const occurredAt = payload.occurred_at
+  const eventId = getPortalWebhookEventId(payload)
+  // occurred_at is signed but not bounded against the delivery timestamp. If Portal clock
+  // errors ever extend tombstone retention, use server receipt time for retention instead.
+  if (meetupId === null || (payload.resource === 'meetup-event' && eventId === null)
+    || !Number.isSafeInteger(sequence) || (sequence as number) < 0
+    || typeof occurredAt !== 'string' || Number.isNaN(Date.parse(occurredAt))) {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid Portal webhook payload' })
   }
 
-  const community = (await getPortalCommunities(event)).find(item => item.portalMeetupId === meetupId)
-  if (community) {
-    const storage = useStorage('portalEvents')
-    const eventId = getPortalWebhookEventId(payload)
-    let cancellationStored = false
-    if (eventName === 'meetup-event.deleted') {
-      if (eventId) cancellationStored = await markPortalEventCancelled(community, eventId, storage)
-    } else if (eventId) {
-      await clearPortalEventCancellation(community, eventId, storage)
-    }
-    await refreshPortalMeetups([community], storage, $fetch)
-    if (eventName === 'meetup-event.deleted' && eventId && !cancellationStored) {
-      await markPortalEventCancelled(community, eventId, storage)
-    }
-    if (eventId) {
-      try {
-        const googleConfig = getGoogleCalendarConfig(config as unknown as Record<string, unknown>)
-        if (eventName === 'meetup-event.deleted') {
-          await deleteGoogleCalendarEvent(eventId, googleConfig)
-        } else {
-          const calendarEvent = (await getPortalCalendarEvents([community.id], [community], storage, $fetch))
-            .find(item => item.event.id === eventId && !item.cancelled)
-          if (calendarEvent) await syncGoogleCalendarEvent(calendarEvent, googleConfig)
-        }
-      } catch (error) {
-        console.error('Google Calendar webhook synchronization failed', {
-          eventName,
-          eventId,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          ...(error instanceof GoogleCalendarError && error.status !== undefined ? { status: error.status } : {}),
-          ...(error instanceof GoogleCalendarError && error.reason ? { reason: error.reason } : {}),
-        })
-        throw createError({ statusCode: 502, statusMessage: 'Google Calendar synchronization failed' })
-      }
-    }
-  }
+  const platform = event.context._platform as { cloudflare?: { env?: Record<string, unknown> } } | undefined
+  const queue = platform?.cloudflare?.env?.PORTAL_EVENTS_QUEUE as PortalEventsQueue | undefined
+  if (!queue?.send) throw createError({ statusCode: 503, statusMessage: 'Portal event queue is unavailable' })
+  await queue.send({
+    kind: 'portal-change',
+    deliveryId,
+    resource: payload.resource as 'meetup' | 'meetup-event',
+    action: payload.action as PortalChangeAction,
+    meetupId,
+    ...(eventId ? { eventId } : {}),
+    sequence: sequence as number,
+    occurredAt,
+  })
+  setResponseStatus(event, 202)
   return { ok: true }
 })

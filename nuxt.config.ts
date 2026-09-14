@@ -4,6 +4,8 @@ const isPreviewDeploy = Boolean(process.env.PREVIEW_DEPLOY)
 const isDevelopment = process.env.NODE_ENV === 'development'
 const communityMapsCron = '17 3 * * *'
 const communityMapsQueue = 'community-maps'
+const portalEventsCron = '47 3 * * *'
+const portalEventsQueue = 'portal-events'
 
 const studioIconLibraries = ['bitcoin-icons', 'lucide', 'pinhead', 'simple-icons', 'streamline']
 
@@ -126,11 +128,12 @@ export default defineNuxtConfig({
     experimental: {
       tasks: true,
     },
-    // Scheduled runs refresh every community; manual task payloads can select one slug.
+    // Scheduled runs refresh generated maps and Portal event snapshots.
     scheduledTasks: isPreviewDeploy
       ? {}
       : {
           [communityMapsCron]: 'community-maps',
+          [portalEventsCron]: 'portal-events',
         },
     devStorage: {
       miners: {
@@ -223,6 +226,10 @@ export default defineNuxtConfig({
                   binding: 'COMMUNITY_MAPS_QUEUE',
                   queue: communityMapsQueue,
                 },
+                {
+                  binding: 'PORTAL_EVENTS_QUEUE',
+                  queue: portalEventsQueue,
+                },
               ],
               consumers: [
                 {
@@ -233,12 +240,22 @@ export default defineNuxtConfig({
                   retry_delay: 60,
                   max_concurrency: 4,
                 },
+                {
+                  queue: portalEventsQueue,
+                  max_batch_size: 100,
+                  max_batch_timeout: 5,
+                  max_retries: 3,
+                  retry_delay: 60,
+                  max_concurrency: 1,
+                  // No DLQ is provisioned yet; persistent valid failures are visible in logs
+                  // but Cloudflare discards them after retries are exhausted.
+                },
               ],
             },
         triggers: isPreviewDeploy
           ? undefined
           : {
-              crons: [communityMapsCron],
+              crons: [communityMapsCron, portalEventsCron],
             },
         observability: cloudflareObservability,
       }

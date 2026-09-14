@@ -1,60 +1,54 @@
 import type { H3Event } from 'h3'
 import type { PortalEvent } from '../../shared/types/portalEvents.ts'
 
-/**
- * Provides the server-only Portal integration: validation, normalization, durable caching, and refreshes.
- * Keeping raw Portal data here prevents unvalidated upstream fields from reaching browser clients.
- */
 const portalEventsUrl = 'https://portal.einundzwanzig.space/api/meetup-events?locale=cs'
 const portalMeetupsUrl = 'https://portal.einundzwanzig.space/api/meetups'
-const maxCacheAgeMs = 7 * 24 * 60 * 60 * 1_000
 const cancellationRetentionMs = 90 * 24 * 60 * 60 * 1_000
 const cacheSchemaVersion = 1
 const wallClockPattern = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/
+const publicSlugPattern = /^[a-z0-9][a-z0-9-]*$/
 
 export interface PortalCommunity {
   id: string
   path: string
   title: string
-  portalMeetupId: number
+  portalMeetupId?: number
 }
 
 export interface PortalStorage {
   getItem(key: string): Promise<unknown>
   setItem(key: string, value: unknown): Promise<void>
-}
-
-export interface PortalCacheStorage extends PortalStorage {
-  removeItem(key: string): Promise<void>
+  getKeys(base?: string): Promise<string[]>
 }
 
 export type PortalFetch = (url: string, options: { timeout: number, retry: number }) => Promise<unknown>
 
-/** Carries a safe HTTP status code for expected Portal integration failures. */
+export type PortalChangeAction = 'created' | 'updated' | 'deleted'
+
+export interface PortalChangeSignal {
+  resource: 'meetup' | 'meetup-event'
+  action: PortalChangeAction
+  meetupId: number
+  eventId?: string
+  sequence: number
+  occurredAt: string
+}
+
 export class PortalEventsError extends Error {
   readonly statusCode: number
 
-  /** Creates an error whose status code can be forwarded by the API handler. */
   constructor(message: string, statusCode: number) {
     super(message)
     this.statusCode = statusCode
   }
 }
 
-/** Returns the durable cache key owned by one Portal meetup. */
-export const portalEventCacheKey = (portalMeetupId: number) => `portal:${portalMeetupId}:events`
+export const portalEventCacheKey = (community: Pick<PortalCommunity, 'id'> | string) =>
+  `community:${typeof community === 'string' ? community : community.id}`
 
-/** Removes one configured community's cached Portal snapshot. */
-export const clearPortalEventCache = (
-  community: PortalCommunity,
-  storage: PortalCacheStorage,
-) => storage.removeItem(portalEventCacheKey(community.portalMeetupId))
-
-/** Narrows untrusted Portal and cache payload values to non-array objects. */
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-/** Parses Portal's UTC wall-clock format and rejects impossible calendar values. */
 const parseUtcWallClock = (value: unknown, field: string) => {
   if (typeof value !== 'string') throw new PortalEventsError(`Portal event ${field} is invalid`, 502)
   const match = wallClockPattern.exec(value)
@@ -68,23 +62,18 @@ const parseUtcWallClock = (value: unknown, field: string) => {
   return instant.toISOString()
 }
 
-/** Returns a raw Portal link only when it is safe for the calendar to navigate to. */
 const parseLink = (value: unknown): string | undefined => {
-  if (value === undefined || value === null || value === '') return undefined
-  if (typeof value !== 'string') return undefined
+  if (value === undefined || value === null || value === '' || typeof value !== 'string') return undefined
   try {
-    const protocol = new URL(value).protocol
-    return ['http:', 'https:', 'mailto:', 'tel:'].includes(protocol) ? value : undefined
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(new URL(value).protocol) ? value : undefined
   } catch {
     return undefined
   }
 }
 
-/** Returns non-blank upstream text while discarding missing or invalid optional metadata. */
 const parseOptionalText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value : undefined
 
-/** Returns a numeric coordinate in its original decimal form only when it is within geographic bounds. */
 const parseCoordinate = (value: unknown, minimum: number, maximum: number): string | undefined => {
   const coordinate = parseOptionalText(value)
   if (!coordinate) return undefined
@@ -92,7 +81,6 @@ const parseCoordinate = (value: unknown, minimum: number, maximum: number): stri
   return Number.isFinite(numeric) && numeric >= minimum && numeric <= maximum ? coordinate : undefined
 }
 
-/** Removes server-only meetup metadata and optional fields that are normalized below. */
 const withoutMeetupMetadata = (event: Record<string, unknown>) => Object.fromEntries(
   Object.entries(event).filter(([key]) => key !== 'meetup' && key !== 'meetup_id' && key !== 'community'
     && key !== 'link' && key !== 'safeLink' && key !== 'location' && key !== 'description' && key !== 'image'
@@ -100,12 +88,10 @@ const withoutMeetupMetadata = (event: Record<string, unknown>) => Object.fromEnt
     && !key.startsWith('meetup.')),
 )
 
-/** Retains complete Portal tag objects while rejecting malformed non-object array entries. */
 const parseTags = (value: unknown): Record<string, unknown>[] => Array.isArray(value)
   ? value.filter(isRecord)
   : []
 
-/** Preserves one complete raw Portal event while normalizing calendar-critical fields. */
 const parseEvent = (value: unknown): PortalEvent => {
   if (!isRecord(value) || !Number.isSafeInteger(value.id) || (value.id as number) < 0) {
     throw new PortalEventsError('Portal event row is invalid', 502)
@@ -164,12 +150,19 @@ interface CancelledEvent extends CachedEvent {
   cancelledAt: string
 }
 
+interface AppliedSignal {
+  action: PortalChangeAction
+  sequence: number
+  occurredAt: string
+}
+
 interface CachedEvents {
   schemaVersion: typeof cacheSchemaVersion
+  community: PortalCommunity
   events: CachedEvent[]
   cancellations: CancelledEvent[]
+  signals: Record<string, AppliedSignal>
   fetchedAt: string
-  validatedFromNonEmptySource: true
 }
 
 export interface PortalCalendarEvent {
@@ -180,7 +173,6 @@ export interface PortalCalendarEvent {
   community: PortalCommunity
 }
 
-/** Validates a cached event before reuse so old or corrupted cache entries force a fresh fetch. */
 const isPortalEvent = (value: unknown): value is PortalEvent => isRecord(value)
   && typeof value.id === 'string'
   && typeof value.title === 'string'
@@ -214,24 +206,34 @@ const isCancelledEvent = (value: unknown): value is CancelledEvent => isCachedEv
   && typeof value.cancelledAt === 'string'
   && !Number.isNaN(Date.parse(value.cancelledAt))
 
-/** Validates one current-version storage value, returning null when it must be refreshed. */
-const parseCache = (value: unknown): CachedEvents | null => {
-  if (value === null || value === undefined) return null
-  if (!isRecord(value) || value.schemaVersion !== cacheSchemaVersion
+const isCommunity = (value: unknown): value is PortalCommunity => isRecord(value)
+  && typeof value.id === 'string' && publicSlugPattern.test(value.id)
+  && typeof value.path === 'string' && typeof value.title === 'string'
+  && (value.portalMeetupId === undefined
+    || (Number.isSafeInteger(value.portalMeetupId) && (value.portalMeetupId as number) >= 0))
+
+const isAppliedSignal = (value: unknown): value is AppliedSignal => isRecord(value)
+  && ['created', 'updated', 'deleted'].includes(String(value.action))
+  && Number.isSafeInteger(value.sequence)
+  && typeof value.occurredAt === 'string'
+  && !Number.isNaN(Date.parse(value.occurredAt))
+
+/** Fully validates state before a background writer uses it to produce the next snapshot. */
+const parseCacheForWrite = (value: unknown): CachedEvents | null => {
+  if (!isRecord(value) || value.schemaVersion !== cacheSchemaVersion || !isCommunity(value.community)
     || !Array.isArray(value.events) || !value.events.every(isCachedEvent)
     || !Array.isArray(value.cancellations) || !value.cancellations.every(isCancelledEvent)
-    || (value.events.length === 0 && value.validatedFromNonEmptySource !== true)
+    || !isRecord(value.signals) || !Object.values(value.signals).every(isAppliedSignal)
     || typeof value.fetchedAt !== 'string' || Number.isNaN(Date.parse(value.fetchedAt))) return null
-  return {
-    schemaVersion: cacheSchemaVersion,
-    events: value.events,
-    cancellations: value.cancellations,
-    fetchedAt: new Date(value.fetchedAt).toISOString(),
-    validatedFromNonEmptySource: true,
-  }
+  return value as unknown as CachedEvents
 }
 
-/** Filters completed events and returns a stable chronological order for cache and response use. */
+/** Public reads trust snapshots written by this integration after checking their schema identity. */
+const parseCacheForRead = (value: unknown): CachedEvents | null => {
+  if (!isRecord(value) || value.schemaVersion !== cacheSchemaVersion) return null
+  return value as unknown as CachedEvents
+}
+
 const futureEvents = (events: readonly PortalEvent[], now: Date) => events
   .filter(event => Date.parse(event.end ?? event.start) >= now.getTime())
   .slice()
@@ -250,9 +252,9 @@ const eventFingerprint = (event: PortalEvent) => JSON.stringify({
   tags: event.tags,
 })
 
-const nextRevision = (event: PortalEvent, previous: CachedEvent | undefined, now: Date): CachedEvent => {
+const nextRevision = (event: PortalEvent, previous: CachedEvent | undefined, now: Date, force = false): CachedEvent => {
   const fingerprint = eventFingerprint(event)
-  if (previous?.fingerprint === fingerprint) return { ...previous, event }
+  if (!force && previous?.fingerprint === fingerprint) return { ...previous, event }
   return {
     event,
     fingerprint,
@@ -261,7 +263,6 @@ const nextRevision = (event: PortalEvent, previous: CachedEvent | undefined, now
   }
 }
 
-/** Fetches one Portal endpoint with bounded retries and translates transport failures to a safe error. */
 const fetchPayload = async (fetcher: PortalFetch, url: string) => {
   try {
     return await fetcher(url, { timeout: 5_000, retry: 0 })
@@ -270,178 +271,269 @@ const fetchPayload = async (fetcher: PortalFetch, url: string) => {
   }
 }
 
-/** Fetches Portal's current data and atomically replaces cache entries for the requested communities. */
+const latestEventSignals = (signals: readonly PortalChangeSignal[]) => {
+  const latest = new Map<string, PortalChangeSignal>()
+  for (const signal of signals) {
+    if (signal.resource !== 'meetup-event' || !signal.eventId) continue
+    const previous = latest.get(signal.eventId)
+    if (!previous || signal.sequence > previous.sequence) latest.set(signal.eventId, signal)
+  }
+  return latest
+}
+
+export interface PortalRefreshResult {
+  preservedCommunities: string[]
+  deletedEventIds: string[]
+  calendarEvents: PortalCalendarEvent[]
+}
+
+/** Fetches Portal once and replaces all requested community snapshots. */
 export const refreshPortalMeetups = async (
   communities: readonly PortalCommunity[],
   storage: PortalStorage,
   fetcher: PortalFetch,
   now = new Date(),
-) => {
-  const [eventPayload, meetupPayload] = await Promise.all([
-    fetchPayload(fetcher, portalEventsUrl),
-    fetchPayload(fetcher, portalMeetupsUrl),
-  ])
-  if (!Array.isArray(eventPayload) || !Array.isArray(meetupPayload)) {
-    throw new PortalEventsError('Portal response is invalid', 502)
-  }
-  if (eventPayload.length === 0) throw new PortalEventsError('Portal event response is empty', 502)
-  const linkByMeetup = new Map<number, string>()
+  signals: readonly PortalChangeSignal[] = [],
+): Promise<PortalRefreshResult> => {
+  // Queue concurrency makes stale reads unlikely, but KV is not strongly consistent.
+  // Revisit a Durable Object only if cross-delivery sequence regressions are observed.
+  const previousByCommunity = new Map<string, CachedEvents | null>()
   for (const community of communities) {
-    const meetup = meetupPayload.find(row => isRecord(row) && row.id === community.portalMeetupId)
-    if (!isRecord(meetup) || typeof meetup.portalLink !== 'string') {
-      throw new PortalEventsError(`Configured Portal meetup ${community.portalMeetupId} was not found`, 502)
+    previousByCommunity.set(
+      community.id,
+      parseCacheForWrite(await storage.getItem(portalEventCacheKey(community))),
+    )
+  }
+  const configured = communities.filter((community): community is PortalCommunity & { portalMeetupId: number } =>
+    community.portalMeetupId !== undefined)
+  let eventPayload: unknown[] = []
+  let meetupPayload: unknown[] = []
+  if (configured.length > 0) {
+    const payloads = await Promise.all([
+      fetchPayload(fetcher, portalEventsUrl),
+      fetchPayload(fetcher, portalMeetupsUrl),
+    ])
+    if (!Array.isArray(payloads[0]) || !Array.isArray(payloads[1])) {
+      throw new PortalEventsError('Portal response is invalid', 502)
     }
-    linkByMeetup.set(community.portalMeetupId, meetup.portalLink)
+    if (payloads[0].length === 0) throw new PortalEventsError('Portal event response is empty', 502)
+    eventPayload = payloads[0]
+    meetupPayload = payloads[1]
   }
 
-  await Promise.all(communities.map(async (community) => {
-    const portalLink = linkByMeetup.get(community.portalMeetupId)
-    const events = futureEvents(eventPayload
-      .filter(row => isRecord(row) && row['meetup.portalLink'] === portalLink)
-      .map(parseEvent), now)
-    const previous = parseCache(await storage.getItem(portalEventCacheKey(community.portalMeetupId)))
-    const cancellations = (previous?.cancellations ?? [])
+  const linkByMeetup = new Map<number, string>()
+  for (const row of meetupPayload) {
+    if (isRecord(row) && Number.isSafeInteger(row.id) && typeof row.portalLink === 'string') {
+      linkByMeetup.set(row.id as number, row.portalLink)
+    }
+  }
+  const missingCommunities = new Set<string>()
+  const failedCommunities = new Set<string>()
+  for (const community of configured) {
+    if (linkByMeetup.has(community.portalMeetupId)) continue
+    missingCommunities.add(community.id)
+    if (!previousByCommunity.get(community.id)) failedCommunities.add(community.id)
+  }
+
+  const communitiesByLink = new Map<string, PortalCommunity[]>()
+  for (const community of configured) {
+    if (missingCommunities.has(community.id)) continue
+    const link = linkByMeetup.get(community.portalMeetupId) as string
+    const matching = communitiesByLink.get(link) ?? []
+    matching.push(community)
+    communitiesByLink.set(link, matching)
+  }
+  const eventsByCommunity = new Map<string, PortalEvent[]>()
+  for (const row of eventPayload) {
+    if (!isRecord(row) || typeof row['meetup.portalLink'] !== 'string') continue
+    const matching = communitiesByLink.get(row['meetup.portalLink'])
+    if (!matching) continue
+    let parsed: PortalEvent
+    try {
+      parsed = parseEvent(row)
+    } catch {
+      for (const community of matching) failedCommunities.add(community.id)
+      continue
+    }
+    for (const community of matching) {
+      const events = eventsByCommunity.get(community.id) ?? []
+      events.push(parsed)
+      eventsByCommunity.set(community.id, events)
+    }
+  }
+
+  const signalsByMeetup = new Map<number, PortalChangeSignal[]>()
+  for (const signal of signals) {
+    const meetupSignals = signalsByMeetup.get(signal.meetupId) ?? []
+    meetupSignals.push(signal)
+    signalsByMeetup.set(signal.meetupId, meetupSignals)
+  }
+  const snapshots: CachedEvents[] = []
+  const deletedEventIds = new Set<string>()
+  for (const community of communities) {
+    const previous = previousByCommunity.get(community.id) ?? null
+    if (missingCommunities.has(community.id) || failedCommunities.has(community.id)) {
+      // A missing meetup can mean deletion or a partial /api/meetups response; preserving
+      // an existing snapshot is safer than deleting events until Portal sends a clearer signal.
+      if (previous) snapshots.push(previous)
+      continue
+    }
+    const communitySignals = community.portalMeetupId === undefined
+      ? []
+      : signalsByMeetup.get(community.portalMeetupId) ?? []
+    const incomingSignals = latestEventSignals(communitySignals)
+    const retainedSignals = Object.fromEntries(Object.entries(previous?.signals ?? {})
+      .filter(([, signal]) => now.getTime() - Date.parse(signal.occurredAt) < cancellationRetentionMs))
+    for (const [eventId, signal] of incomingSignals) {
+      const applied = retainedSignals[eventId]
+      if (!applied || signal.sequence > applied.sequence) {
+        retainedSignals[eventId] = {
+          action: signal.action,
+          sequence: signal.sequence,
+          occurredAt: signal.occurredAt,
+        }
+      }
+    }
+
+    const previousActive = new Map(previous?.events.map(item => [item.event.id, item]))
+    const previousCancelled = new Map((previous?.cancellations ?? [])
       .filter(item => now.getTime() - Date.parse(item.cancelledAt) < cancellationRetentionMs)
-    const cancelledEventIds = new Set(cancellations.map(item => item.event.id))
-    const previousEvents = new Map(previous?.events.map(item => [item.event.id, item]))
+      .map(item => [item.event.id, item]))
+    const sourceEvents = futureEvents(eventsByCommunity.get(community.id) ?? [], now)
+    const sourceById = new Map(sourceEvents.map(event => [event.id, event]))
+    const cancellations = new Map(previousCancelled)
+
+    for (const [eventId, signal] of Object.entries(retainedSignals)) {
+      if (signal.action !== 'deleted') {
+        cancellations.delete(eventId)
+        continue
+      }
+      const basis = previousActive.get(eventId) ?? previousCancelled.get(eventId)
+      const event = sourceById.get(eventId) ?? basis?.event
+      if (!event) continue
+      const previousSignal = previous?.signals[eventId]
+      const isNewDeletion = signal.action === 'deleted'
+        && (!previousSignal || signal.sequence > previousSignal.sequence)
+      const revision = previousCancelled.has(eventId) && !isNewDeletion
+        ? previousCancelled.get(eventId) as CancelledEvent
+        : nextRevision(event, basis, now, isNewDeletion)
+      cancellations.set(eventId, {
+        ...revision,
+        cancelledAt: isNewDeletion ? signal.occurredAt : previousCancelled.get(eventId)?.cancelledAt ?? signal.occurredAt,
+      })
+    }
+
+    const events = sourceEvents
+      .filter(event => retainedSignals[event.id]?.action !== 'deleted')
+      .map((event) => {
+        const restored = previousCancelled.get(event.id)
+        return nextRevision(event, restored ?? previousActive.get(event.id), now, Boolean(restored))
+      })
     const cache: CachedEvents = {
       schemaVersion: cacheSchemaVersion,
-      events: events
-        .filter(event => !cancelledEventIds.has(event.id))
-        .map(event => nextRevision(event, previousEvents.get(event.id), now)),
-      cancellations,
+      community,
+      events,
+      cancellations: [...cancellations.values()],
+      signals: retainedSignals,
       fetchedAt: now.toISOString(),
-      validatedFromNonEmptySource: true,
     }
-    await storage.setItem(portalEventCacheKey(community.portalMeetupId), cache)
-  }))
-}
-
-/** Moves one webhook-confirmed deletion into the calendar cancellation window. */
-export const markPortalEventCancelled = async (
-  community: PortalCommunity,
-  eventId: string,
-  storage: PortalStorage,
-  now = new Date(),
-) => {
-  const key = portalEventCacheKey(community.portalMeetupId)
-  const cache = parseCache(await storage.getItem(key))
-  if (!cache) return false
-  const active = cache.events.find(item => item.event.id === eventId)
-  if (!active) return false
-  const sequence = Math.max(active.sequence + 1, Math.floor(now.getTime() / 1_000))
-  await storage.setItem(key, {
-    ...cache,
-    events: cache.events.filter(item => item.event.id !== eventId),
-    cancellations: [
-      ...cache.cancellations.filter(item => item.event.id !== eventId),
-      { ...active, sequence, changedAt: now.toISOString(), cancelledAt: now.toISOString() },
-    ],
-  } satisfies CachedEvents)
-  return true
-}
-
-/** Allows a later create/update webhook to restore an explicitly cancelled event ID. */
-export const clearPortalEventCancellation = async (
-  community: PortalCommunity,
-  eventId: string,
-  storage: PortalStorage,
-) => {
-  const key = portalEventCacheKey(community.portalMeetupId)
-  const cache = parseCache(await storage.getItem(key))
-  if (!cache || !cache.cancellations.some(item => item.event.id === eventId)) return false
-  await storage.setItem(key, {
-    ...cache,
-    cancellations: cache.cancellations.filter(item => item.event.id !== eventId),
-  } satisfies CachedEvents)
-  return true
-}
-
-const getPortalCaches = async (
-  selected: readonly PortalCommunity[],
-  storage: PortalStorage,
-  fetcher: PortalFetch,
-  now: Date,
-) => {
-  let caches = await Promise.all(selected.map(async community => ({
-    community,
-    cache: parseCache(await storage.getItem(portalEventCacheKey(community.portalMeetupId))),
-  })))
-  const needsRefresh = caches.some(({ cache }) => !cache || now.getTime() - Date.parse(cache.fetchedAt) >= maxCacheAgeMs)
-  if (needsRefresh) {
-    try {
-      await refreshPortalMeetups(selected, storage, fetcher, now)
-      caches = await Promise.all(selected.map(async community => ({
-        community,
-        cache: parseCache(await storage.getItem(portalEventCacheKey(community.portalMeetupId))),
-      })))
-    } catch (error) {
-      if (caches.some(({ cache }) => !cache)) throw error
+    snapshots.push(cache)
+    for (const eventId of incomingSignals.keys()) {
+      if (retainedSignals[eventId]?.action === 'deleted') deletedEventIds.add(eventId)
     }
   }
-  return caches.map(({ community, cache }) => {
-    if (!cache) throw new PortalEventsError(`Cache for ${community.id} is unavailable`, 502)
-    return { community, cache }
-  })
+
+  await Promise.all(snapshots.map(snapshot => storage.setItem(portalEventCacheKey(snapshot.community), snapshot)))
+  if (failedCommunities.size > 0) {
+    throw new PortalEventsError(
+      `Portal event refresh was incomplete for: ${[...failedCommunities].sort().join(', ')}`,
+      502,
+    )
+  }
+  return {
+    deletedEventIds: [...deletedEventIds],
+    preservedCommunities: [...missingCommunities].filter(communityId => Boolean(previousByCommunity.get(communityId))),
+    calendarEvents: snapshots.flatMap(cache => [
+      ...cache.events.map(item => ({ ...item, cancelled: false, community: cache.community })),
+      ...cache.cancellations.map(item => ({ ...item, cancelled: true, community: cache.community })),
+    ]),
+  }
 }
 
-/** Returns fresh-enough future events, refreshing stale or missing community cache entries when necessary. */
+const readSelectedCaches = async (
+  requested: readonly string[] | 'all',
+  storage: PortalStorage,
+) => {
+  const keys = requested === 'all'
+    // Removed or renamed content communities can leave obsolete keys behind. Writer-side
+    // cleanup is deferred until a retention policy is defined for those public snapshots.
+    ? (await storage.getKeys('community:')).filter(key => key.startsWith('community:')).sort()
+    : requested.map(portalEventCacheKey)
+  if (keys.length === 0) throw new PortalEventsError('Portal event cache is unavailable', 503)
+  const caches = await Promise.all(keys.map(async (key) => {
+    const value = await storage.getItem(key)
+    if (value === null || value === undefined) throw new PortalEventsError('Community was not found', 404)
+    const cache = parseCacheForRead(value)
+    if (!cache) throw new PortalEventsError('Portal event cache is unavailable', 503)
+    return cache
+  }))
+  return caches
+}
+
+/** Returns browser events exclusively from durable community snapshots. */
 export const getPortalEvents = async (
   requested: string,
-  communities: readonly PortalCommunity[],
   storage: PortalStorage,
-  fetcher: PortalFetch,
-  now = new Date(),
 ): Promise<PortalEvent[]> => {
-  const selected = requested === 'all'
-    ? communities
-    : communities.filter(community => community.id === requested)
-  if (selected.length === 0) throw new PortalEventsError('Community was not found', 404)
-
-  const caches = await getPortalCaches(selected, storage, fetcher, now)
-  return caches.flatMap(({ community, cache }) => futureEvents(cache.events.map(item => item.event), now).map(event => requested === 'all'
-    ? { ...event, community: { path: community.path, name: community.title } }
-    : event)).sort((a, b) => Date.parse(a.start) - Date.parse(b.start) || Number(a.id) - Number(b.id))
+  const caches = await readSelectedCaches(requested === 'all' ? 'all' : [requested], storage)
+  return caches.flatMap(cache => cache.events.map(({ event }) => requested === 'all'
+    ? { ...event, community: { path: cache.community.path, name: cache.community.title } }
+    : event))
 }
 
-/** Returns active and recently cancelled events for one generated calendar scope. */
+/** Returns active and cancelled rows exclusively from durable community snapshots. */
 export const getPortalCalendarEvents = async (
   requested: readonly string[] | 'all',
-  communities: readonly PortalCommunity[],
   storage: PortalStorage,
-  fetcher: PortalFetch,
-  now = new Date(),
 ): Promise<PortalCalendarEvent[]> => {
-  const selected = requested === 'all'
-    ? communities
-    : communities.filter(community => requested.includes(community.id))
-  if (selected.length === 0 || (requested !== 'all' && selected.length !== requested.length)) {
-    throw new PortalEventsError('Community was not found', 404)
-  }
-  const caches = await getPortalCaches(selected, storage, fetcher, now)
-  return caches.flatMap(({ community, cache }) => [
-    ...cache.events.map(item => ({ ...item, cancelled: false, community })),
-    ...cache.cancellations
-      .filter(item => now.getTime() - Date.parse(item.cancelledAt) < cancellationRetentionMs)
-      .map(item => ({ ...item, cancelled: true, community })),
+  const caches = await readSelectedCaches(requested, storage)
+  return caches.flatMap(cache => [
+    ...cache.events.map(item => ({ ...item, cancelled: false, community: cache.community })),
+    ...cache.cancellations.map(item => ({ ...item, cancelled: true, community: cache.community })),
   ])
 }
 
-/** Reads content-owned community settings and projects only valid Portal integration configuration. */
-export const getPortalCommunities = async (event: H3Event): Promise<PortalCommunity[]> => {
+/** Returns snapshot-owned community labels together with their calendar rows. */
+export const getPortalCalendarData = async (
+  requested: readonly string[] | 'all',
+  storage: PortalStorage,
+) => {
+  const caches = await readSelectedCaches(requested, storage)
+  return {
+    communities: caches.map(cache => cache.community),
+    events: caches.flatMap(cache => [
+      ...cache.events.map(item => ({ ...item, cancelled: false, community: cache.community })),
+      ...cache.cancellations.map(item => ({ ...item, cancelled: true, community: cache.community })),
+    ]),
+  }
+}
+
+/** Reads all content-owned communities, including valid empty calendar scopes. */
+export const getPortalCommunities = async (event?: H3Event): Promise<PortalCommunity[]> => {
   const { queryCollection } = await import('@nuxt/content/server')
-  const communities = await queryCollection(event, 'communities').all()
-  return communities.flatMap((community) => {
-    if (community.portal_meetup_id === undefined || community.portal_meetup_id === null) return []
-    const portalMeetupId = Number(community.portal_meetup_id)
-    if (!Number.isSafeInteger(portalMeetupId) || portalMeetupId < 0) {
+  const communities = await queryCollection(event as H3Event, 'communities').all()
+  return communities.map((community) => {
+    const portalMeetupId = community.portal_meetup_id === undefined || community.portal_meetup_id === null
+      ? undefined
+      : Number(community.portal_meetup_id)
+    if (portalMeetupId !== undefined && (!Number.isSafeInteger(portalMeetupId) || portalMeetupId < 0)) {
       throw new Error(`Community ${community.path} has an invalid Portal meetup ID`)
     }
-    return [{
-      id: community.path.replace(/^\/+/, ''),
+    return {
+      id: community.path.replace(/^\/+|\/+$/g, ''),
       path: community.path,
       title: community.title,
-      portalMeetupId,
-    }]
+      ...(portalMeetupId !== undefined ? { portalMeetupId } : {}),
+    }
   })
 }

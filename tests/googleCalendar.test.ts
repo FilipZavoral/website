@@ -6,6 +6,7 @@ import {
   GoogleCalendarError,
   googleCalendarEventId,
   reconcileGoogleCalendar,
+  syncGoogleCalendarChanges,
   syncGoogleCalendarEvent,
   type GoogleCalendarConfig,
   type GoogleFetch,
@@ -137,6 +138,31 @@ test('deleting an already absent Google event is idempotent', async () => {
     return new Response(null, { status: 404 })
   }
   assert.equal(await deleteGoogleCalendarEvent('42', config, fetcher), false)
+})
+
+test('a queued change batch shares one OAuth token and coalesces event revisions', async () => {
+  let tokenRequests = 0
+  const requests: Array<{ url: string, method?: string }> = []
+  const fetcher: GoogleFetch = async (url, init) => {
+    requests.push({ url, method: init?.method })
+    if (url === 'https://oauth2.googleapis.com/token') {
+      tokenRequests += 1
+      return tokenResponse()
+    }
+    if (init?.method === 'PUT') return Response.json({ id: 'updated' })
+    if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+    return new Response(null, { status: 500 })
+  }
+
+  const report = await syncGoogleCalendarChanges([
+    portalEvent('1', { sequence: 10 }),
+    portalEvent('1', { sequence: 11 }),
+    portalEvent('2', { cancelled: true }),
+  ], config, fetcher, ['3'])
+  assert.equal(tokenRequests, 1)
+  assert.deepEqual(report, { created: 0, updated: 1, deleted: 2 })
+  assert.equal(requests.filter(request => request.method === 'PUT').length, 1)
+  assert.equal(requests.filter(request => request.method === 'DELETE').length, 2)
 })
 
 test('full reconciliation rewrites current events and deletes only stale future managed events', async () => {

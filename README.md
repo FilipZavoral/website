@@ -65,6 +65,15 @@ Kalendář načítá události z `https://portal.einundzwanzig.space/`, kde je v
 
 Události se v tomto repozitáři nespravují.
 
+#### Lokální obnovení událostí
+
+Nastav v `.env` hodnotu `NUXT_EVENTS_ADMIN_TOKEN`, spusť nebo restartuj vývojový server a zavolej refresh endpoint:
+
+```bash
+curl --request POST http://localhost:2103/api/events/refresh \
+  --header "Authorization: Bearer <NUXT_EVENTS_ADMIN_TOKEN>"
+```
+
 ## Předpřipravený devcontainer
 
 Visual Studio Code nebo GitHub Workspace umožňují použít devcontainer, který má předinstalované doporučené extensions a nastavení. Cokoliv v něm spustíš (nebo AI agent) tak bude izolováno od tvého systému pomocí Docker kontejneru (nechat AI se autonomně hrabat v tvém počítači je opravdu špatný nápad 😉).
