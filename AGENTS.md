@@ -16,8 +16,20 @@
 
 - Inspect the working tree before editing. Treat existing dirty paths as unrelated user work unless the task explicitly assigns them.
 - Never revert, overwrite, stage, or include unrelated existing changes. Preserve every unrelated dirty-worktree path.
-- Do not create incremental or automatic commits. A complete phase becomes eligible for a commit only after all relevant checks pass, UAT is complete, the changes are summarized, and the user gives explicit approval for that commit.
-- Approval is never implied by successful automated checks or UAT; explicit commit approval is a separate requirement.
+- For ordinary work outside GSD, edit the current working tree without automatically creating a branch or commit. Most small changes should not use GSD unless the user requests it.
+- Create a commit for ordinary work only when the user explicitly requests one. If its scope is clear, that request is sufficient approval; if unrelated changes are present, ask which paths to include.
+- GSD may create incremental implementation commits only on `gsd/phase-*` branches and their isolated executor worktrees. Never create GSD implementation commits on `master`.
+- Keep `master` protected: never merge, rebase, cherry-pick, tag, push, or otherwise change its history without explicit user approval. Successful checks, UAT, phase completion, or a request to review do not imply integration approval.
+- Start a dependent GSD phase only after every prerequisite phase has been reviewed, approved, and integrated into `master`. Stop rather than base a dependent phase on an unmerged phase branch.
+- Before integrating a phase, report the source and target branches, branch ancestry, commits and diff against `master`, relevant verification and UAT results, and unmet dependencies. Explain the consequences and confirm the user's intended integration path.
+- Prefer `/gsd-ship <phase>` for a reviewed PR into `master`; also offer keeping the phase branch unchanged when further review is wanted. Do not run `/gsd-complete-milestone` until its branch-merge effects have been explained and the user explicitly approves proceeding.
+
+### Commit Messages
+
+- Follow the repository's Conventional Commit style with a concise imperative subject.
+- Prefer standard types such as `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `build:`, and `ci:`.
+- Use `content:` for editorial changes to published site content, such as articles, community profiles, people, categories, page copy, and assets under `public/` that are directly used by that content. This is an intentional repository-specific extension, not a standard Conventional Commits type, so tools must treat it explicitly rather than assume it is universally recognized.
+- Use `docs:` for developer or project documentation, `feat:` for new content functionality, and `fix:` for behavioral corrections rather than editorial content updates.
 
 ## Project-Specific Knowledge
 
