@@ -165,6 +165,33 @@ test('a queued change batch shares one OAuth token and coalesces event revisions
   assert.equal(requests.filter(request => request.method === 'DELETE').length, 2)
 })
 
+test('a queued change batch retains grouped Google rejection diagnostics', async () => {
+  const fetcher: GoogleFetch = async (url) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    return Response.json({
+      error: {
+        errors: [{ reason: 'insufficientPermissions', message: 'Sensitive upstream detail' }],
+      },
+    }, { status: 403 })
+  }
+
+  await assert.rejects(
+    syncGoogleCalendarChanges([portalEvent('1'), portalEvent('2')], config, fetcher),
+    (error: unknown) => {
+      assert.ok(error instanceof GoogleCalendarError)
+      assert.equal(error.message, 'Google Calendar synchronization failed for 2 operation(s)')
+      assert.deepEqual(error.failures, [{
+        operation: 'Google Calendar rejected an event update',
+        status: 403,
+        reason: 'insufficientPermissions',
+        count: 2,
+      }])
+      assert.doesNotMatch(JSON.stringify(error.failures), /Sensitive upstream detail/)
+      return true
+    },
+  )
+})
+
 test('full reconciliation rewrites current events and deletes only stale future managed events', async () => {
   const active = portalEvent('1')
   const cancelled = portalEvent('2', { cancelled: true })
@@ -228,4 +255,26 @@ test('full reconciliation lets the highest sequence win between active and cance
   assert.deepEqual(report, { created: 1, updated: 0, deleted: 0 })
   assert.equal(updatedBodies.length, 1)
   assert.equal(deleted.length, 0)
+})
+
+test('full reconciliation retains grouped Google insert diagnostics', async () => {
+  const fetcher: GoogleFetch = async (url) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    if (url.includes('/events?')) return Response.json({ items: [] })
+    return Response.json({ error: { errors: [{ reason: 'invalid' }] } }, { status: 400 })
+  }
+
+  await assert.rejects(
+    reconcileGoogleCalendar([portalEvent('1'), portalEvent('2')], config, fetcher),
+    (error: unknown) => {
+      assert.ok(error instanceof GoogleCalendarError)
+      assert.deepEqual(error.failures, [{
+        operation: 'Google Calendar rejected an event insert',
+        status: 400,
+        reason: 'invalid',
+        count: 2,
+      }])
+      return true
+    },
+  )
 })

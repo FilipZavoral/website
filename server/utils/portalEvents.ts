@@ -266,7 +266,20 @@ const nextRevision = (event: PortalEvent, previous: CachedEvent | undefined, now
 const fetchPayload = async (fetcher: PortalFetch, url: string) => {
   try {
     return await fetcher(url, { timeout: 5_000, retry: 0 })
-  } catch {
+  } catch (error) {
+    const endpoint = url === portalMeetupsUrl ? 'meetups' : 'events'
+    const status = isRecord(error)
+      ? typeof error.statusCode === 'number'
+        ? error.statusCode
+        : typeof error.status === 'number'
+          ? error.status
+          : undefined
+      : undefined
+    console.error('[portal-events] Portal fetch failed', {
+      endpoint,
+      errorType: error instanceof Error ? error.name : typeof error,
+      ...(status !== undefined ? { status } : {}),
+    })
     throw new PortalEventsError('Portal event refresh failed', 502)
   }
 }

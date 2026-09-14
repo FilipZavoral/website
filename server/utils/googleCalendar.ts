@@ -22,6 +22,13 @@ export interface GoogleCalendarSyncReport {
   deleted: number
 }
 
+export interface GoogleCalendarFailureSummary {
+  operation: string
+  status?: number
+  reason?: string
+  count: number
+}
+
 interface ManagedGoogleEvent {
   id: string
   portalEventId?: string
@@ -33,17 +40,44 @@ interface ManagedGoogleEvent {
 export class GoogleCalendarError extends Error {
   readonly status?: number
   readonly reason?: string
+  readonly failures?: readonly GoogleCalendarFailureSummary[]
 
   constructor(
     message: string,
     status?: number,
     reason?: string,
+    failures?: readonly GoogleCalendarFailureSummary[],
   ) {
     super(message)
     this.name = 'GoogleCalendarError'
     this.status = status
     this.reason = reason
+    this.failures = failures
   }
+}
+
+const summarizeOperationFailures = (failures: readonly unknown[]): GoogleCalendarFailureSummary[] => {
+  const summaries = new Map<string, GoogleCalendarFailureSummary>()
+  for (const failure of failures) {
+    const operation = failure instanceof GoogleCalendarError
+      ? failure.message
+      : 'Unknown Google Calendar operation failure'
+    const status = failure instanceof GoogleCalendarError ? failure.status : undefined
+    const reason = failure instanceof GoogleCalendarError ? failure.reason : undefined
+    const key = JSON.stringify([operation, status, reason])
+    const summary = summaries.get(key)
+    if (summary) {
+      summary.count += 1
+    } else {
+      summaries.set(key, {
+        operation,
+        ...(status !== undefined ? { status } : {}),
+        ...(reason ? { reason } : {}),
+        count: 1,
+      })
+    }
+  }
+  return [...summaries.values()].sort((left, right) => right.count - left.count)
 }
 
 /** Validates private runtime configuration before any Google side effect. */
@@ -327,7 +361,14 @@ export const syncGoogleCalendarChanges = async (
     const results = await Promise.allSettled(operations.slice(index, index + 5).map(operation => operation()))
     failures.push(...results.flatMap(result => result.status === 'rejected' ? [result.reason] : []))
   }
-  if (failures.length > 0) throw new GoogleCalendarError(`Google Calendar synchronization failed for ${failures.length} operation(s)`)
+  if (failures.length > 0) {
+    throw new GoogleCalendarError(
+      `Google Calendar synchronization failed for ${failures.length} operation(s)`,
+      undefined,
+      undefined,
+      summarizeOperationFailures(failures),
+    )
+  }
   return report
 }
 
@@ -383,6 +424,13 @@ export const reconcileGoogleCalendar = async (
     const results = await Promise.allSettled(operations.slice(index, index + 5).map(operation => operation()))
     failures.push(...results.flatMap(result => result.status === 'rejected' ? [result.reason] : []))
   }
-  if (failures.length > 0) throw new GoogleCalendarError(`Google Calendar synchronization failed for ${failures.length} operation(s)`)
+  if (failures.length > 0) {
+    throw new GoogleCalendarError(
+      `Google Calendar synchronization failed for ${failures.length} operation(s)`,
+      undefined,
+      undefined,
+      summarizeOperationFailures(failures),
+    )
+  }
   return report
 }

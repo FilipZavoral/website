@@ -3,7 +3,7 @@ import {
   refreshPortalMeetups,
   type PortalChangeSignal,
 } from '../utils/portalEvents.ts'
-import { getGoogleCalendarConfig, reconcileGoogleCalendar, syncGoogleCalendarChanges } from '../utils/googleCalendar.ts'
+import { getGoogleCalendarConfig, GoogleCalendarError, reconcileGoogleCalendar, syncGoogleCalendarChanges } from '../utils/googleCalendar.ts'
 import {
   parsePortalEventsQueueBatch,
   portalEventsQueueName,
@@ -74,7 +74,11 @@ export default defineNitroPlugin((nitroApp) => {
       const detail = error instanceof Error
         ? `${error.name}: ${error.message}`
         : `non-Error rejection (${typeof error})`
-      console.error(`[portal-events] Queue processing failed: ${detail}`)
+      if (error instanceof GoogleCalendarError && error.failures) {
+        console.error(`[portal-events] Queue processing failed: ${detail}`, { googleFailures: error.failures })
+      } else {
+        console.error(`[portal-events] Queue processing failed: ${detail}`)
+      }
       throw error
     }
   })

@@ -52,6 +52,26 @@ const signal = (overrides: Partial<PortalChangeSignal> = {}): PortalChangeSignal
   ...overrides,
 })
 
+test('Portal transport failures log safe endpoint diagnostics', async (t) => {
+  const logs: unknown[][] = []
+  t.mock.method(console, 'error', (...args: unknown[]) => logs.push(args))
+  const upstreamError = Object.assign(new Error('Sensitive upstream detail'), { statusCode: 504 })
+  const failedFetch: PortalFetch = async (url) => {
+    if (url.endsWith('/meetups')) return meetups
+    throw upstreamError
+  }
+
+  await assert.rejects(
+    refreshPortalMeetups([brno], storage(), failedFetch, now),
+    error => error instanceof PortalEventsError && error.message === 'Portal event refresh failed',
+  )
+  assert.deepEqual(logs, [[
+    '[portal-events] Portal fetch failed',
+    { endpoint: 'events', errorType: 'Error', status: 504 },
+  ]])
+  assert.doesNotMatch(JSON.stringify(logs), /Sensitive upstream detail/)
+})
+
 test('one refresh fetches each Portal endpoint once and writes community-keyed snapshots', async () => {
   const values = new Map<string, unknown>()
   const calls: string[] = []
