@@ -16,6 +16,7 @@ export default defineContentConfig({
   collections: {
     blogArticles: defineCollection({
       type: 'page',
+      indexes: [{ columns: ['path'] }],
       source: {
         include: `${routedContentSources.blogArticles.directory}/**`,
         exclude,
@@ -32,6 +33,7 @@ export default defineContentConfig({
 
     blogCategories: defineCollection({
       type: 'page',
+      indexes: [{ columns: ['path'] }],
       source: {
         include: `${routedContentSources.blogCategories.directory}/**`,
         exclude,
@@ -44,6 +46,7 @@ export default defineContentConfig({
 
     communities: defineCollection({
       type: 'page',
+      indexes: [{ columns: ['path'] }],
       source: {
         include: `${routedContentSources.communities.directory}/**`,
         exclude,
@@ -71,6 +74,7 @@ export default defineContentConfig({
 
     pages: defineCollection({
       type: 'page',
+      indexes: [{ columns: ['path'] }],
       source: {
         include: `${routedContentSources.pages.directory}/**`,
         exclude,

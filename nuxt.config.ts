@@ -167,8 +167,27 @@ export default defineNuxtConfig({
       nodeCompat: true,
       wrangler: {
         name: 'jednadvacetorg-web',
+        // Keep prerendered pages asset-first while allowing unknown navigations to fall through to Nuxt.
+        compatibility_flags: ['assets_navigation_has_no_effect'],
         assets: {
           html_handling: 'drop-trailing-slash',
+          not_found_handling: '404-page',
+          run_worker_first: [
+            '/api/*',
+            '/ical/*',
+            '/feed/*',
+            '/cntrsclc',
+            '/_studio/*',
+            '!/_nuxt/*',
+            '!/images/*',
+            '!/icons/*',
+            '!/img/*',
+            '!/.well-known/*',
+            '!/robots.txt',
+            '!/favicon.ico',
+            '!/apple-touch-icon.png',
+            '!/apple-touch-icon-precomposed.png',
+          ],
         },
         // PR previews omit the prod database_id so the temp account auto-provisions
         // a fresh D1 (Nuxt Content reseeds it from dump.*.sql). See review apps in README.
