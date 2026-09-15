@@ -131,6 +131,23 @@ test('Google insert rejections identify the failed fallback operation', async ()
   )
 })
 
+test('Google transport failures are classified without retaining their message', async () => {
+  const fetcher: GoogleFetch = async (url) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    throw new TypeError('Too many subrequests for private-calendar@example.test')
+  }
+
+  await assert.rejects(
+    syncGoogleCalendarEvent(portalEvent('42'), config, fetcher),
+    (error: unknown) => {
+      assert.ok(error instanceof GoogleCalendarError)
+      assert.equal(error.transport, 'subrequest-limit')
+      assert.doesNotMatch(JSON.stringify(error), /private-calendar/)
+      return true
+    },
+  )
+})
+
 test('deleting an already absent Google event is idempotent', async () => {
   const fetcher: GoogleFetch = async (url, init) => {
     if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
@@ -190,6 +207,38 @@ test('a queued change batch retains grouped Google rejection diagnostics', async
       return true
     },
   )
+})
+
+test('a queued change batch stops after the first rate-limited operation group', async () => {
+  let updates = 0
+  const fetcher: GoogleFetch = async (url, init) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    if (init?.method === 'PUT') {
+      updates += 1
+      return Response.json({ error: { errors: [{ reason: 'rateLimitExceeded' }] } }, { status: 403 })
+    }
+    return new Response(null, { status: 500 })
+  }
+
+  await assert.rejects(
+    syncGoogleCalendarChanges([
+      portalEvent('1'),
+      portalEvent('2'),
+      portalEvent('3'),
+      portalEvent('4'),
+    ], config, fetcher),
+    (error: unknown) => {
+      assert.ok(error instanceof GoogleCalendarError)
+      assert.deepEqual(error.failures, [{
+        operation: 'Google Calendar rejected an event update',
+        status: 403,
+        reason: 'rateLimitExceeded',
+        count: 2,
+      }])
+      return true
+    },
+  )
+  assert.equal(updates, 2)
 })
 
 test('full reconciliation rewrites current events and deletes only stale future managed events', async () => {
@@ -255,6 +304,64 @@ test('full reconciliation lets the highest sequence win between active and cance
   assert.deepEqual(report, { created: 1, updated: 0, deleted: 0 })
   assert.equal(updatedBodies.length, 1)
   assert.equal(deleted.length, 0)
+})
+
+test('full reconciliation skips an active event with an equal Google sequence', async () => {
+  const googleId = await googleCalendarEventId('1')
+  let writes = 0
+  const fetcher: GoogleFetch = async (url, init) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    if (url.includes('/events?')) {
+      return Response.json({
+        items: [{
+          id: googleId,
+          extendedProperties: {
+            private: {
+              jednadvacetEventId: '1',
+              jednadvacetSequence: '10',
+            },
+          },
+        }],
+      })
+    }
+    if (init?.method === 'PUT' || init?.method === 'POST') writes += 1
+    return Response.json({ id: googleId })
+  }
+
+  assert.deepEqual(
+    await reconcileGoogleCalendar([portalEvent('1', { sequence: 10 })], config, fetcher),
+    { created: 0, updated: 0, deleted: 0 },
+  )
+  assert.equal(writes, 0)
+})
+
+test('full reconciliation updates an active event with a newer Portal sequence', async () => {
+  const googleId = await googleCalendarEventId('1')
+  let updates = 0
+  const fetcher: GoogleFetch = async (url, init) => {
+    if (url === 'https://oauth2.googleapis.com/token') return tokenResponse()
+    if (url.includes('/events?')) {
+      return Response.json({
+        items: [{
+          id: googleId,
+          extendedProperties: {
+            private: {
+              jednadvacetEventId: '1',
+              jednadvacetSequence: '9',
+            },
+          },
+        }],
+      })
+    }
+    if (init?.method === 'PUT') updates += 1
+    return Response.json({ id: googleId })
+  }
+
+  assert.deepEqual(
+    await reconcileGoogleCalendar([portalEvent('1', { sequence: 10 })], config, fetcher),
+    { created: 0, updated: 1, deleted: 0 },
+  )
+  assert.equal(updates, 1)
 })
 
 test('full reconciliation retains grouped Google insert diagnostics', async () => {

@@ -6,6 +6,7 @@ const googleCalendarUrl = 'https://www.googleapis.com/calendar/v3'
 const integrationSource = 'portal'
 const base32hexAlphabet = '0123456789abcdefghijklmnopqrstuv'
 const googleRequestTimeoutMs = 10_000
+const googleOperationConcurrency = 2
 
 export interface GoogleCalendarConfig {
   clientId: string
@@ -26,8 +27,11 @@ export interface GoogleCalendarFailureSummary {
   operation: string
   status?: number
   reason?: string
+  transport?: GoogleCalendarTransportFailure
   count: number
 }
+
+export type GoogleCalendarTransportFailure = 'timeout' | 'subrequest-limit' | 'network'
 
 interface ManagedGoogleEvent {
   id: string
@@ -41,19 +45,30 @@ export class GoogleCalendarError extends Error {
   readonly status?: number
   readonly reason?: string
   readonly failures?: readonly GoogleCalendarFailureSummary[]
+  readonly transport?: GoogleCalendarTransportFailure
 
   constructor(
     message: string,
     status?: number,
     reason?: string,
     failures?: readonly GoogleCalendarFailureSummary[],
+    transport?: GoogleCalendarTransportFailure,
   ) {
     super(message)
     this.name = 'GoogleCalendarError'
     this.status = status
     this.reason = reason
     this.failures = failures
+    this.transport = transport
   }
+}
+
+const classifyTransportFailure = (error: unknown): GoogleCalendarTransportFailure => {
+  if (error instanceof Error) {
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') return 'timeout'
+    if (/subrequests?|too many requests/i.test(error.message)) return 'subrequest-limit'
+  }
+  return 'network'
 }
 
 const summarizeOperationFailures = (failures: readonly unknown[]): GoogleCalendarFailureSummary[] => {
@@ -64,7 +79,8 @@ const summarizeOperationFailures = (failures: readonly unknown[]): GoogleCalenda
       : 'Unknown Google Calendar operation failure'
     const status = failure instanceof GoogleCalendarError ? failure.status : undefined
     const reason = failure instanceof GoogleCalendarError ? failure.reason : undefined
-    const key = JSON.stringify([operation, status, reason])
+    const transport = failure instanceof GoogleCalendarError ? failure.transport : undefined
+    const key = JSON.stringify([operation, status, reason, transport])
     const summary = summaries.get(key)
     if (summary) {
       summary.count += 1
@@ -73,6 +89,7 @@ const summarizeOperationFailures = (failures: readonly unknown[]): GoogleCalenda
         operation,
         ...(status !== undefined ? { status } : {}),
         ...(reason ? { reason } : {}),
+        ...(transport ? { transport } : {}),
         count: 1,
       })
     }
@@ -135,8 +152,14 @@ const accessToken = async (config: GoogleCalendarConfig, fetcher: GoogleFetch) =
       body,
       signal: AbortSignal.timeout(googleRequestTimeoutMs),
     })
-  } catch {
-    throw new GoogleCalendarError('Google OAuth is unavailable')
+  } catch (error) {
+    throw new GoogleCalendarError(
+      'Google OAuth is unavailable',
+      undefined,
+      undefined,
+      undefined,
+      classifyTransportFailure(error),
+    )
   }
   if (!response.ok) await rejectedResponse(response, 'Google OAuth rejected the refresh token')
   const payload = await responseJson(response)
@@ -209,9 +232,19 @@ const googleRequest = async (
         ...init.headers,
       },
     })
-  } catch {
-    throw new GoogleCalendarError('Google Calendar is unavailable')
+  } catch (error) {
+    throw new GoogleCalendarError(
+      'Google Calendar is unavailable',
+      undefined,
+      undefined,
+      undefined,
+      classifyTransportFailure(error),
+    )
   }
+}
+
+const discardResponseBody = async (response: Response) => {
+  await response.body?.cancel()
 }
 
 const upsertWithToken = async (
@@ -228,21 +261,32 @@ const upsertWithToken = async (
       method: 'PUT',
       body: JSON.stringify(body),
     })
-    if (updated.ok) return 'updated'
+    if (updated.ok) {
+      await discardResponseBody(updated)
+      return 'updated'
+    }
     if (updated.status !== 404) await rejectedResponse(updated, 'Google Calendar rejected an event update')
+    await discardResponseBody(updated)
   }
 
   const inserted = await googleRequest(fetcher, token, config, '/events', {
     method: 'POST',
     body: JSON.stringify({ id, ...body }),
   })
-  if (inserted.ok) return 'created'
+  if (inserted.ok) {
+    await discardResponseBody(inserted)
+    return 'created'
+  }
   if (inserted.status === 409) {
+    await discardResponseBody(inserted)
     const updated = await googleRequest(fetcher, token, config, `/events/${id}`, {
       method: 'PUT',
       body: JSON.stringify(body),
     })
-    if (updated.ok) return 'updated'
+    if (updated.ok) {
+      await discardResponseBody(updated)
+      return 'updated'
+    }
     await rejectedResponse(updated, 'Google Calendar rejected an event update after an insert conflict')
   }
   return rejectedResponse(inserted, 'Google Calendar rejected an event insert')
@@ -259,7 +303,24 @@ const deleteWithToken = async (
   if (!response.ok && response.status !== 404 && response.status !== 410) {
     await rejectedResponse(response, 'Google Calendar rejected an event deletion')
   }
+  await discardResponseBody(response)
   return response.status !== 404 && response.status !== 410
+}
+
+const executeOperations = async (operations: readonly (() => Promise<void>)[]) => {
+  const failures: unknown[] = []
+  for (let index = 0; index < operations.length; index += googleOperationConcurrency) {
+    const results = await Promise.allSettled(
+      operations.slice(index, index + googleOperationConcurrency).map(operation => operation()),
+    )
+    const batchFailures = results.flatMap(result => result.status === 'rejected' ? [result.reason] : [])
+    failures.push(...batchFailures)
+    if (batchFailures.some(failure => failure instanceof GoogleCalendarError
+      && (failure.status === 429
+        || failure.reason === 'rateLimitExceeded'
+        || failure.reason === 'userRateLimitExceeded'))) break
+  }
+  return failures
 }
 
 const listManagedEvents = async (
@@ -356,11 +417,7 @@ export const syncGoogleCalendarChanges = async (
   operations.push(...deletions.map(eventId => async () => {
     if (await deleteWithToken(eventId, config, fetcher, token)) report.deleted += 1
   }))
-  const failures: unknown[] = []
-  for (let index = 0; index < operations.length; index += 5) {
-    const results = await Promise.allSettled(operations.slice(index, index + 5).map(operation => operation()))
-    failures.push(...results.flatMap(result => result.status === 'rejected' ? [result.reason] : []))
-  }
+  const failures = await executeOperations(operations)
   if (failures.length > 0) {
     throw new GoogleCalendarError(
       `Google Calendar synchronization failed for ${failures.length} operation(s)`,
@@ -399,7 +456,7 @@ export const reconcileGoogleCalendar = async (
     operations.push(async () => {
       const id = await googleCalendarEventId(item.event.id)
       const existingEvent = existingById.get(id)
-      if (existingEvent?.sequence !== undefined && existingEvent.sequence > item.sequence) return
+      if (existingEvent?.sequence !== undefined && existingEvent.sequence >= item.sequence) return
       const result = await upsertWithToken(item, config, fetcher, token, existingEvent !== undefined)
       report[result] += 1
     })
@@ -419,11 +476,7 @@ export const reconcileGoogleCalendar = async (
     })
   }
 
-  const failures: unknown[] = []
-  for (let index = 0; index < operations.length; index += 5) {
-    const results = await Promise.allSettled(operations.slice(index, index + 5).map(operation => operation()))
-    failures.push(...results.flatMap(result => result.status === 'rejected' ? [result.reason] : []))
-  }
+  const failures = await executeOperations(operations)
   if (failures.length > 0) {
     throw new GoogleCalendarError(
       `Google Calendar synchronization failed for ${failures.length} operation(s)`,

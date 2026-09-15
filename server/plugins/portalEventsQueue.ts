@@ -74,8 +74,13 @@ export default defineNitroPlugin((nitroApp) => {
       const detail = error instanceof Error
         ? `${error.name}: ${error.message}`
         : `non-Error rejection (${typeof error})`
-      if (error instanceof GoogleCalendarError && error.failures) {
-        console.error(`[portal-events] Queue processing failed: ${detail}`, { googleFailures: error.failures })
+      if (error instanceof GoogleCalendarError) {
+        console.error(`[portal-events] Queue processing failed: ${detail}`, {
+          ...(error.status !== undefined ? { googleStatus: error.status } : {}),
+          ...(error.reason ? { googleReason: error.reason } : {}),
+          ...(error.transport ? { googleTransport: error.transport } : {}),
+          ...(error.failures ? { googleFailures: error.failures } : {}),
+        })
       } else {
         console.error(`[portal-events] Queue processing failed: ${detail}`)
       }
