@@ -54,6 +54,7 @@
 ## Simplicity and Scope Control
 
 - Start each feature with the smallest responsibility map that can deliver it. Requirements describe outcomes, not required files, layers, or abstractions.
+- When writing new Czech user-facing copy, address the user consistently with singular informal forms (tykání), including UI, validation, error, accessibility, and page-copy strings. Prefer forms such as `vyber`, `zkus`, `můžeš`, `chceš`, `ti`, `tě`, and `tvůj`/`tvoje` instead of `vyberte`, `zkuste`, `můžete`, `chcete`, `vám`, `vás`, and `váš`/`vaše`. Preserve the established voice in blog articles, author profiles, quotations, and other editorial content unless the task explicitly asks to change it.
 - Add a new component, helper, type, export, or source file only when it has at least two production consumers, isolates genuinely complex pure logic, or is required by a framework boundary. Tests do not count as a second consumer.
 - Keep one-use logic local by default. Do not split components merely because template sections have different conceptual responsibilities.
 - Keep types at the narrowest boundary. Put a type in `shared/` only when production code on both client and server consumes it.

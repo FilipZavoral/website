@@ -220,7 +220,7 @@ const stopPan = (event: PointerEvent) => {
       <p>Jsme v {{ data?.length ?? 0 }} městech po celém Česku.</p>
 
       <p v-if="error" role="alert" class="mt-8 text-white/75">
-        Mapu komunit se nepodařilo načíst. Zkuste stránku obnovit.
+        Mapu komunit se nepodařilo načíst. Zkus stránku obnovit.
       </p>
     </UContainer>
 
@@ -245,7 +245,7 @@ const stopPan = (event: PointerEvent) => {
       >
         <title id="community-map-title">Mapa bitcoinových komunit v Česku</title>
         <desc id="community-map-description">
-          Kliknutím mapu přiblížíte nebo oddálíte. Na přiblížené mapě ji jedním prstem posunete a dvěma prsty změníte přiblížení. Oranžové body a jejich názvy odkazují na místní komunity.
+          Kliknutím mapu přiblížíš nebo oddálíš. Na přiblížené mapě ji jedním prstem posuneš a dvěma prsty změníš přiblížení. Oranžové body a jejich názvy odkazují na místní komunity.
         </desc>
 
         <g :transform="mapTransform" class="map-layer">

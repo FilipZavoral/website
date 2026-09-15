@@ -107,7 +107,7 @@ useHead(() => ({
         role="alert"
         color="neutral"
         variant="subtle"
-        title="Kalendář se nyní nepodařilo načíst. Zkuste stránku obnovit později."
+        title="Kalendář se nyní nepodařilo načíst. Zkus stránku obnovit později."
       />
       <div v-else-if="isMissingPortalMeetup || data?.length === 0" role="status" class="text-center p-10">
         <h3 class="text-xl font-semibold leading-tight">Žádné naplánované události</h3>
