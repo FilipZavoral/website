@@ -1,219 +1,249 @@
-<!-- refreshed: 2026-09-10 -->
+---
+last_mapped_commit: 599ee9aa4c15c119dae17486c0f6ea5999b32b9e
+last_mapped_at: 2026-09-15
+---
+<!-- refreshed: 2026-09-15 -->
+
 # Architecture
 
-**Analysis Date:** 2026-09-10
+**Analysis Date:** 2026-09-15
 
 ## System Overview
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│ Nuxt 4 SSR application shell                                │
-│ `app/app.vue`, `app/layouts/`, Nuxt UI                      │
-└───────────────┬─────────────────────────┬───────────────────┘
-                │                         │
-                ▼                         ▼
-┌────────────────────────────┐  ┌─────────────────────────────┐
-│ File-based page adapters    │  │ Nitro HTTP/task adapters     │
-│ `app/pages/`                │  │ `server/api/`, `server/routes/`│
-└──────────────┬─────────────┘  └──────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌────────────────────────────┐  ┌─────────────────────────────┐
-│ Typed Nuxt Content read     │  │ Integration/domain utilities │
-│ model `content.config.ts`   │  │ `server/utils/`              │
-└──────────────┬─────────────┘  └──────────────┬──────────────┘
-               │                               │
-               ▼                               ▼
-┌────────────────────────────┐  ┌─────────────────────────────┐
-│ Markdown and static assets  │  │ Portal/Google/Mapbox/Beru   │
-│ `content/`, `public/`       │  │ APIs, KV, R2, queues         │
-└────────────────────────────┘  └─────────────────────────────┘
+│                    Nuxt 4 SSR application                    │
+│                      `app/app.vue`                           │
+├──────────────────┬──────────────────┬───────────────────────┤
+│ File routes      │ Content UI        │ Server/Nitro API       │
+│ `app/pages/`     │ `app/components/` │ `server/`              │
+└────────┬─────────┴────────┬─────────┴──────────┬────────────┘
+         │                  │                     │
+         ▼                  ▼                     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Typed Nuxt Content collections and shared application data    │
+│ `content.config.ts`, `content/`, `shared/data/`, `shared/`    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Nuxt Content SQLite/D1, Nitro storage, Cloudflare services    │
+│ `nuxt.config.ts`, Portal API, KV, R2, Queues, Google API      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-The system is a content-driven Nuxt 4 SSR site deployed with Nitro's `cloudflare_module` preset. Markdown collections are the primary read model; Vue pages and components render those records with Nuxt UI. Server-only adapters provide normalized calendar/miner data, iCalendar output, Google Calendar synchronization, and asynchronous community-map generation.
+The repository contains one Nuxt 4 application using Vue 3, TypeScript, Nuxt Content, Nuxt UI, NuxtHub, and Nitro. Browser requests are SSR-rendered through `app/app.vue`; Cloudflare Workers is the production Nitro preset configured in `nuxt.config.ts`.
 
 ## Component Responsibilities
 
 | Component | Responsibility | File |
 |-----------|----------------|------|
-| App shell | Global head, Czech locale, layout and page mounting | `app/app.vue` |
-| Site frame | Navigation, main slot and footer | `app/layouts/default.vue` |
-| Error frame | Branded error rendering over a wallpaper layout | `app/error.vue`, `app/layouts/wallpaper.vue` |
-| Root route adapter | Resolves `pages` then visible `communities` in the shared root namespace | `app/pages/[...slug].vue` |
-| Blog route adapter | Resolves blog index, category and article records | `app/pages/blog/[[slug]].vue` |
-| People route | Lists the `people` collection at `/lide` | `app/pages/lide.vue` |
-| Content model | Defines five typed collections and frontmatter validation | `content.config.ts` |
-| Content route source | Shares collection directories and public prefixes | `shared/data/contentRouteSources.ts` |
-| Page renderers | Render blog articles/categories and community landing pages | `app/components/page/` |
-| MDC components | Add calendar, maps, miners, donation, partner and guide features to Markdown | `app/components/content/`, `app/components/` |
-| Portal adapter | Validates, normalizes, caches and refreshes Portal event snapshots | `server/utils/portalEvents.ts` |
-| Calendar adapters | Project events into iCalendar and Google Calendar formats | `server/routes/ical/[slug].get.ts`, `server/utils/googleCalendar.ts` |
-| Map pipeline | Fetches places, creates Mapbox images and stores them in Blob/R2 | `server/utils/staticMap.ts`, `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts` |
+| Application shell | Sets document head, locale, `UApp`, layout, route announcer, and page rendering | `app/app.vue` |
+| File-based route resolution | Selects content pages/communities and blog index/categories/articles | `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue` |
+| Content schema | Defines typed collections, source directories, public prefixes, and validation | `content.config.ts` |
+| Page presentation | Renders typed content and domain-specific landing pages | `app/components/page/BlogArticle.vue`, `app/components/page/BlogCategory.vue`, `app/components/page/Community.vue` |
+| Shared navigation | Combines static navigation with content-derived cities and categories | `app/components/app/NavMenu.vue`, `shared/data/navigation.ts` |
+| Public API | Exposes event, miner, map, webhook, refresh, and iCal endpoints | `server/api/`, `server/routes/ical/[slug].get.ts` |
+| Background processing | Runs scheduled tasks and Cloudflare queue consumers | `server/tasks/`, `server/plugins/` |
+| Domain services | Fetches, validates, snapshots, projects, and synchronizes external data | `server/utils/` |
 
 ## Pattern Overview
 
-**Overall:** File-based Nuxt routing over typed filesystem content, with thin server adapters around external APIs and Cloudflare-backed storage.
+**Overall:** Content-driven SSR with Nuxt file routing, typed collection queries, and Nitro service endpoints.
 
 **Key Characteristics:**
-- Use `queryCollection` and generated `@nuxt/content` item types at route and component boundaries.
-- Keep `/blog` explicit and resolve root `pages` before `communities`; public paths are part of the content contract.
-- Keep untrusted external payloads behind server utilities and expose normalized values to browser components.
-- Keep pure transformations in `app/utils/` or server utility modules so UI, iCalendar and Google Calendar consumers share projections.
-- Use Nuxt UI primitives for layout and controls; specialized interaction remains local to components such as `app/components/CommunityMap.vue`.
+
+- Markdown collections are the source of truth for public pages, communities, blog content, and people.
+- `app/pages/` resolves routes while reusable presentation belongs in `app/components/`.
+- Server-side external integrations are isolated in `server/utils/` and exposed through thin `server/api/` or `server/routes/` handlers.
+- Durable event snapshots are read by public requests; refreshes happen in scheduled tasks and queue consumers.
+- Cloudflare-specific bindings are selected in `nuxt.config.ts` while local development uses filesystem or memory drivers.
 
 ## Layers
 
 **Application shell and layouts:**
-- Purpose: Establish locale, global head defaults, navigation, footer and error presentation.
-- Location: `app/app.vue`, `app/layouts/`, `app/error.vue`.
-- Depends on: Nuxt runtime and Nuxt UI.
-- Used by: Every browser route.
 
-**Route adapters:**
-- Purpose: Translate URLs into typed collection records and choose renderers.
-- Location: `app/pages/`.
-- Contains: Root catch-all, optional blog catch-all and explicit people route.
-- Depends on: `useAsyncData`, `queryCollection`, generated collection types and page components.
-- Used by: Nuxt's filesystem router.
+- Purpose: Provide global head metadata, accessibility announcements, navigation, page container, and footer.
+- Location: `app/app.vue`, `app/layouts/`, `app/components/app/`
+- Contains: `UApp`, `NuxtLayout`, `NuxtPage`, header/footer, wallpaper layout.
+- Depends on: Nuxt UI and shared navigation data.
+- Used by: Every page route.
 
-**Content model and build extensions:**
-- Purpose: Define schemas, source paths, prefixes, publication-date transformation, redirects and route collision checks.
-- Location: `content.config.ts`, `shared/blogArticlesTransformer.ts`, `shared/contentRedirectsModule.ts`, `scripts/validate-content-routes.ts`.
-- Depends on: Nuxt Content, Nuxt Kit and sitemap schema support.
-- Used by: Build-time indexing, sitemap generation and route adapters.
+**Route and content query layer:**
 
-**Presentation and client behavior:**
-- Purpose: Render content and provide navigation, maps, calendar filtering, miners, QR codes and social/support UI.
-- Location: `app/components/`, `app/composables/content.ts`, `app/utils/`, `app/plugins/`.
-- Depends on: Nuxt UI, Nuxt Content, VueUse and shared types/data.
-- Used by: Pages and Markdown MDC rendering.
+- Purpose: Map URLs to typed content collections and choose the correct content view.
+- Location: `app/pages/`, `app/composables/content.ts`, `content.config.ts`
+- Contains: Catch-all root routes, optional blog slug route, collection query helpers, collection schemas.
+- Depends on: Generated Nuxt Content types and filesystem-backed content.
+- Used by: Pages, navigation, maps, people blocks, and background tasks.
 
-**Server HTTP boundary:**
-- Purpose: Serve normalized data and generated feeds, while enforcing admin/webhook validation.
-- Location: `server/api/`, `server/routes/`, `server/middleware/`.
-- Contains: Event/miner APIs, calendar feeds, map routes, admin operations and the RSS compatibility response.
-- Depends on: H3, Nuxt Content server queries, `$fetch`, runtime config and Nitro storage.
+**Presentation layer:**
 
-**Async and storage boundary:**
-- Purpose: Run scheduled or queued community-map generation and persist snapshots/assets.
-- Location: `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`, `nuxt.config.ts`.
-- Depends on: Cloudflare Queues, KV, NuxtHub Blob and Mapbox/BeruBitcoin.
+- Purpose: Render content and feature UI using Nuxt UI primitives.
+- Location: `app/components/`
+- Contains: Page views, navigation, blog cards, community map, calendar, donation, partner, and content renderer components.
+- Depends on: Typed collection records, shared types/data, `useFetch`, `useAsyncData`, and Nuxt UI.
+- Used by: Route pages and Markdown/MDC rendering.
+
+**Server HTTP layer:**
+
+- Purpose: Validate requests and translate them into domain-service calls.
+- Location: `server/api/`, `server/routes/`, `server/middleware/`
+- Contains: Events API, signed Portal webhook, admin refresh routes, miner/map endpoints, iCal feed, and RSS middleware.
+- Depends on: H3, Nitro storage/tasks, Cloudflare bindings, and `server/utils/`.
+- Used by: Browser components, Portal callbacks, scheduled operations, and calendar clients.
+
+**Domain and integration layer:**
+
+- Purpose: Encapsulate external API parsing, snapshot rules, calendar projection, static map generation, and auth checks.
+- Location: `server/utils/`
+- Contains: `portalEvents.ts`, `googleCalendar.ts`, `calendarEventProjection.ts`, `staticMap.ts`, `miners.ts`, and queue/auth helpers.
+- Depends on: Web Crypto, Fetch, Nitro storage, and external Portal/Google/Mapbox services.
+- Used by: HTTP handlers, queue consumers, and tasks.
+
+**Shared data and types:**
+
+- Purpose: Keep route source metadata, navigation, geometry, partners, and server/client contracts in one importable layer.
+- Location: `shared/`
+- Contains: `shared/data/`, `shared/types/`, transformers, and the content redirect module.
+- Depends on: Nuxt Content or Nuxt Kit only where needed.
+- Used by: Both `app/` and `server/`.
 
 ## Data Flow
 
 ### Primary Content Request Path
 
-1. Nuxt mounts `app/app.vue`, which installs the layout and page outlet.
-2. `/blog` and `/blog/**` enter `app/pages/blog/[[slug]].vue`; other content paths enter `app/pages/[...slug].vue`.
-3. The route adapter queries the matching collection with `queryCollection(...).path(...).first()`.
-4. The resolved record renders through `ContentRenderer`, or delegates to `PageBlogArticle`, `PageBlogCategory` or `PageCommunity`.
-5. MDC names in Markdown resolve to auto-imported components such as `Calendar`, `CommunityMap`, `MinersTable`, `PartnersList` and `DonateBlock`.
+1. Nuxt enters `app/app.vue`, installs global head metadata and renders `NuxtLayout`/`NuxtPage`.
+2. A root URL enters `app/pages/[...slug].vue`, which queries `pages` and then `communities` by `route.path`.
+3. A `/blog` URL enters `app/pages/blog/[[slug]].vue`, which selects the blog index, `blogCategories`, or `blogArticles` collection.
+4. The selected record is passed to `ContentRenderer`, `PageCommunity`, `PageBlogCategory`, or `PageBlogArticle`.
+5. Nuxt Content renders Markdown/MDC; `nuxt.config.ts` aliases the table renderer to `ProseScrollableTable` and applies the blog transformer.
 
-### Portal Calendar Path
+### Community Calendar Path
 
-1. `app/components/content/Calendar.vue` requests `/api/events?community=...` through `useFetch`.
-2. `server/api/events/index.get.ts` validates the slug and obtains configured communities from the `communities` collection.
-3. `server/utils/portalEvents.ts` validates a KV/filesystem snapshot, refreshes stale data from Portal, and returns normalized events.
-4. The client projects rows with `app/utils/calendar.ts`, filters/paginates locally, and emits Event JSON-LD.
-5. Signed Portal notifications enter `server/api/events/webhook.post.ts`, update cancellation state/cache, and synchronize the affected event to Google Calendar.
+1. `app/components/content/Calendar.vue` calls `/api/events?community=...` with `useFetch`.
+2. `server/api/events/index.get.ts` validates the slug and reads `useStorage('portalEvents')` through `getPortalEvents()` in `server/utils/portalEvents.ts`.
+3. The browser projects and filters normalized events in `app/utils/calendar.ts` and renders them with Nuxt UI.
+4. `/ical/[slug]` uses the same snapshots through `server/routes/ical/[slug].get.ts` and serializes standards-compliant iCalendar output.
 
-### Public Calendar and Google Sync Paths
+### Portal Refresh Path
 
-1. `/ical/:slug` is handled by `server/routes/ical/[slug].get.ts`, which validates a slug list, reads Portal snapshots and serializes iCalendar with `ical.js`.
-2. The protected `/api/events/google-sync` handler authenticates `eventsAdminToken`, refreshes all Portal snapshots, and calls `reconcileGoogleCalendar` in `server/utils/googleCalendar.ts`.
-3. Google OAuth and Calendar requests use runtime-configured credentials and an integration-owned extended-property namespace, so reconciliation only mutates managed events.
+1. Portal sends a signed callback to `server/api/events/webhook.post.ts`, which verifies timestamp, HMAC, payload, and identifiers.
+2. The handler sends a typed message to the `PORTAL_EVENTS_QUEUE` Cloudflare binding.
+3. `server/plugins/portalEventsQueue.ts` selects affected content communities, calls `refreshPortalMeetups()`, and writes snapshots to the `portalEvents` Nitro storage mount.
+4. Full refreshes reconcile Google Calendar; targeted event changes synchronize affected Google events.
+5. Scheduled `server/tasks/portal-events.ts` sends a `refresh-all` message; `server/api/events/refresh.post.ts` provides the authenticated admin trigger.
 
 ### Community Map Path
 
-1. A scheduled Nitro task or protected `/api/community-maps/refresh` request runs `server/tasks/community-maps.ts`.
-2. The task queries visible communities with `map` data and sends one JSON source message per community to the Cloudflare Queue.
-3. `server/plugins/communityMapsQueue.ts` validates each message and invokes `generateCommunityMaps`.
-4. `server/utils/staticMap.ts` fetches BeruBitcoin places, selects visible markers, fetches responsive Mapbox WebP variants, and writes them to NuxtHub Blob/R2.
-5. `app/components/page/Community.vue` serves local development blobs through `server/api/community-maps/[slug].get.ts` and production assets from the public files CDN.
+1. `server/tasks/community-maps.ts` queries visible communities with coordinates and batches map sources to the `COMMUNITY_MAPS_QUEUE` binding.
+2. `server/plugins/communityMapsQueue.ts` calls `generateCommunityMaps()` in `server/utils/staticMap.ts` and writes generated variants through `hub:blob`.
+3. `app/components/page/Community.vue` reads local development map endpoints or the public R2 CDN URL for production.
 
-**State Management:** SSR data uses `useAsyncData`/`useFetch`; component interaction uses Vue refs/reactives/computed values. Durable server snapshots use Nitro storage (`portalEvents`, `miners`), with filesystem development storage, memory preview storage and Cloudflare KV production storage. Generated map images use NuxtHub Blob backed by filesystem locally and R2 in production.
+**State Management:**
+
+- Request state uses Nuxt payload-aware `useAsyncData` and `useFetch`.
+- Content state is read from Nuxt Content collections and is not mutated in the client.
+- Interactive state such as map transforms, calendar filters, pagination, and modal visibility is local component state.
+- External event state is materialized in Nitro storage and updated asynchronously through queues.
 
 ## Key Abstractions
 
-**Routed content source map:** `shared/data/contentRouteSources.ts` is consumed by `content.config.ts` and `scripts/validate-content-routes.ts`. Update it when adding or moving a routed collection.
+**Routed content collections:**
 
-**Typed collection items:** `content.config.ts` generates collection item types used by `app/pages/` and page renderers. Keep frontmatter changes in collection schemas rather than duplicating record interfaces.
+- Purpose: Keep content directory names and public URL prefixes synchronized.
+- Examples: `content.config.ts`, `shared/data/contentRouteSources.ts`
+- Pattern: Both collection schemas and the route validator consume `routedContentSources`; root pages and communities intentionally share `/`.
 
-**Portal contracts:** `PortalCommunity`, `PortalStorage`, `PortalFetch`, `PortalCalendarEvent` and `PortalEventsError` in `server/utils/portalEvents.ts` isolate external I/O, cache state and normalized event contracts.
+**Typed content projections:**
 
-**Calendar projection:** `server/utils/calendarEventProjection.ts` is shared by iCalendar and Google Calendar; `app/utils/calendar.ts` is the browser-specific Czech display/JSON-LD projection.
+- Purpose: Convert collection records into UI-ready groupings without coupling components to query details.
+- Examples: `app/composables/content.ts`, `app/utils/communityMap.ts`
+- Pattern: Query helpers return async data; pure projection functions such as `projectCommunities()` handle sorting/grouping.
 
-**Pure map projections:** `app/utils/communityMap.ts` owns SVG coordinate and pan/zoom math; `server/utils/staticMap.ts` owns external static-map validation, URL construction and image generation.
+**Portal event snapshots:**
+
+- Purpose: Decouple public reads from Portal availability and preserve cancellation/revision semantics.
+- Examples: `server/utils/portalEvents.ts`, `server/api/events/index.get.ts`
+- Pattern: Parse untrusted upstream rows, validate cache schemas, write durable snapshots, then serve only validated snapshot-derived data.
+
+**Queue message contracts:**
+
+- Purpose: Define safe boundaries between HTTP/scheduled producers and Cloudflare consumers.
+- Examples: `server/utils/portalEventsQueue.ts`, `server/tasks/community-maps.ts`
+- Pattern: Use discriminated message shapes and explicit runtime parsing before processing.
 
 ## Entry Points
 
-**Browser application:**
-- Location: `app/app.vue`.
-- Triggers: Nuxt SSR request or client navigation.
-- Responsibilities: Global metadata, locale, layout and page mounting.
+**Nuxt application:**
+
+- Location: `app/app.vue`
+- Triggers: Every SSR or client route request.
+- Responsibilities: Global document head, Czech UI locale, layout selection, route announcement, and page rendering.
 
 **Content routes:**
-- Locations: `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `app/pages/lide.vue`.
-- Triggers: Root pages/communities, `/blog/**` and `/lide`.
-- Responsibilities: Content queries, renderer selection and fatal 404s.
 
-**HTTP APIs and feeds:**
-- Locations: `server/api/`, `server/routes/ical/[slug].get.ts`, `server/middleware/rss-feed.ts`.
-- Triggers: Browser data fetches, signed Portal callbacks, admin requests, calendar subscriptions and `/feed/` requests.
-- Responsibilities: Validation, integration delegation, response projection and safe status translation.
+- Location: `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `app/pages/lide.vue`
+- Triggers: Public page, blog, and people URLs.
+- Responsibilities: Query collections, select views, emit 404 errors, and set page-level metadata.
 
-**Scheduled/queued runtime:**
-- Locations: `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`.
-- Triggers: Nitro scheduled task and Cloudflare Queue consumer.
-- Responsibilities: Enqueueing and generating map assets.
+**Nitro HTTP routes:**
 
-**Build/runtime configuration:**
-- Location: `nuxt.config.ts`.
-- Responsibilities: Module registration, content transformer, redirects, sitemap, Cloudflare D1/KV/Queue bindings, Blob/image providers, prerendering and runtime config.
+- Location: `server/api/`, `server/routes/`, `server/middleware/rss-feed.ts`
+- Triggers: Browser fetches, Portal webhooks, admin calls, iCalendar clients, and feed requests.
+- Responsibilities: Validate inputs, call domain services, set response status/headers, and map failures to HTTP errors.
+
+**Background entry points:**
+
+- Location: `server/tasks/`, `server/plugins/`
+- Triggers: Cloudflare cron schedules and queue deliveries configured in `nuxt.config.ts`.
+- Responsibilities: Enqueue map/event work and process queue batches.
 
 ## Architectural Constraints
 
-- **Runtime:** Production targets Cloudflare Workers; avoid Node-only APIs in runtime code. Node is explicitly used by `scripts/validate-content-routes.ts` and test commands.
-- **URL space:** `pages` and `communities` share `/`; `/blog` is reserved for blog collections. Route collisions are rejected by `scripts/validate-content-routes.ts`.
-- **Content dates:** Blog dates come from `YYYYMMDD.` filenames through `shared/blogArticlesTransformer.ts`; order articles by `id`.
-- **Storage:** Use named Nitro storage mounts configured in `nuxt.config.ts`; do not introduce ad hoc global caches.
-- **External payloads:** Treat Portal, Google, BeruBitcoin and Mapbox responses as untrusted and validate before persistence or rendering.
-- **Generated output:** `.nuxt/`, `.output/` and `.data/` are generated/runtime state; do not hand-edit them.
+- **Runtime:** Production uses the Cloudflare Workers `cloudflare_module` Nitro preset; use Web APIs and Cloudflare-compatible storage rather than Node-only APIs.
+- **Rendering:** The application is SSR-first; use Nuxt payload-aware data fetching and keep browser-only APIs behind client lifecycle checks.
+- **Content routing:** `pages` and `communities` share root paths, while blog categories/articles share `/blog`; preserve `shared/data/contentRouteSources.ts` and route validation.
+- **Storage:** Portal events use the `portalEvents` Nitro storage mount; production maps it to Cloudflare KV and previews use isolated in-memory storage.
+- **External integrations:** Portal webhooks must be verified before queueing; public handlers must not directly trust upstream payloads.
+- **Global state:** Module-level constants and pure helpers exist in `server/utils/portalEvents.ts`; mutable UI state stays inside components.
+- **Circular imports:** No intentional circular dependency chain is detected; keep shared contracts below app/server consumers.
 
 ## Anti-Patterns
 
-### Bypassing server integration adapters
+### Direct upstream event reads from public UI
 
-**What happens:** A component or endpoint calls an upstream service directly or renders raw upstream fields.
-**Why it's wrong:** It bypasses validation, safe-link filtering, cache fallback, authentication and Cloudflare-compatible storage handling.
-**Do this instead:** Extend the relevant utility under `server/utils/` and expose a narrow handler under `server/api/` or `server/routes/`.
+**What happens:** A public component calls Portal directly or bypasses `server/utils/portalEvents.ts` snapshots.
+**Why it's wrong:** It couples rendering to upstream latency/availability and bypasses validation and cancellation handling.
+**Do this instead:** Call `server/api/events/index.get.ts`, which reads durable snapshots through `getPortalEvents()`.
 
-### Adding root content without route validation
+### Adding a new root route without collection collision validation
 
-**What happens:** A page/community filename claims a path already owned by another collection or `/blog`.
-**Why it's wrong:** File-based precedence can make content unreachable or select the wrong renderer.
-**Do this instead:** Preserve `shared/data/contentRouteSources.ts` and run the build route guard in `scripts/validate-content-routes.ts`.
+**What happens:** A new page or community filename introduces a duplicate public path.
+**Why it's wrong:** Both collections use the root URL space and route selection becomes ambiguous.
+**Do this instead:** Update `content.config.ts` and `shared/data/contentRouteSources.ts` consistently and run `scripts/validate-content-routes.ts`.
 
 ## Error Handling
 
-**Strategy:** Route adapters throw fatal Nuxt 404 errors; H3 handlers validate inputs and translate expected integration failures to explicit statuses; the global error page renders branded 404/other-error states.
+**Strategy:** Validate at boundaries, use typed domain errors, and translate failures into safe H3 responses.
 
 **Patterns:**
-- `app/pages/[...slug].vue` and `app/pages/blog/[[slug]].vue` throw `createError({ statusCode: 404, fatal: true })` when no record resolves.
-- `server/utils/portalEvents.ts`, `server/utils/googleCalendar.ts` and the public calendar route use typed errors for safe status translation.
-- Admin routes use `server/utils/eventsAdminAuth.ts`; Portal webhooks use timestamped HMAC validation in `server/api/events/webhook.post.ts`.
-- Server logs record operational failure details while production response messages avoid upstream payloads and secrets.
+
+- Content misses throw fatal 404 errors in `app/pages/[...slug].vue` and `app/pages/blog/[[slug]].vue`.
+- API handlers use `createError()` and hide upstream details outside development, as in `server/api/events/index.get.ts`.
+- Queue consumers log structured context and rethrow so Cloudflare retry behavior remains active.
+- External content is parsed and schema-checked before persistence in `server/utils/portalEvents.ts`.
 
 ## Cross-Cutting Concerns
 
-**Logging:** `console.error`/`console.info` in server handlers, map tasks and queue processing; Cloudflare observability is configured in `nuxt.config.ts`.
+**Logging:** `console.info`, `console.warn`, and `console.error` are used in server tasks, queue consumers, and integration boundaries; Cloudflare observability is configured in `nuxt.config.ts`.
 
-**Validation:** Zod schemas validate content frontmatter; server adapters narrow external payloads; route, slug, query, webhook and calendar scope validators protect HTTP boundaries.
+**Validation:** Zod schemas validate Markdown frontmatter in `content.config.ts`; server handlers use explicit type guards and regex/range checks; tests in `tests/` cover domain boundaries.
 
-**Authentication:** Public content, miner and event reads are unauthenticated. Admin event/cache/map operations use the configured token; Portal webhook delivery uses HMAC headers; Google uses OAuth refresh-token credentials.
+**Authentication:** Admin event refresh uses `NUXT_EVENTS_ADMIN_TOKEN` through `server/utils/eventsAdminAuth.ts`; Portal callbacks use HMAC verification in `server/api/events/webhook.post.ts`; Google synchronization uses runtime OAuth configuration in `server/utils/googleCalendar.ts`.
 
-**SEO/metadata:** Route and renderer components set `Head` metadata; `nuxt.config.ts` configures site identity, sitemap exclusions, redirects and prerender crawling.
+**SEO and metadata:** Global canonical/head behavior is in `app/app.vue`; page-specific metadata is colocated with route/view components; sitemap behavior is configured in `nuxt.config.ts` and `content.config.ts`.
 
 ---
 
-*Architecture analysis: 2026-09-10*
+*Architecture analysis: 2026-09-15*
