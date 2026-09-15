@@ -215,7 +215,7 @@ export default defineNuxtConfig({
           : [
               {
                 binding: 'PORTAL_EVENT_SNAPSHOTS',
-                id: '5e0aa50166db40ae8414c83614dbae4d',
+                id: 'fc1c8f97503145fd8f6563fd22358ab6',
               },
             ],
         queues: isPreviewDeploy
