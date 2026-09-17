@@ -32,6 +32,7 @@ organizers:
 | 16.4.2025 | Self-hosting pro začátečníky | Ondra BTC-Hrouda | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/250416-selfhosting.pdf) |
 | 7.5.2025 | Kryptodědictví | Radim Kozub (Blockchain Legals), Josef Tětek (Satoshi Labs) |  |
 | 23.7.2025 | Protokol Ark zlehka | Filip Zavoral (MFF UK) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/250723-ark.pdf) |
+| 20.9.2025 | Protokol Ark (ChainCamp) | Filip Zavoral (MFF UK) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/presentations/250723-ark-chaincamp.pptx) [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/250723-ark-ChainCamp.md) |
 | 15.10.2025 | Cashu | Gorrdy (Firefish) | [video](https://www.youtube.com/watch?v=sEwkF48uKfw) |
 | zimní semestr 2025 | Bitcoin a technologie kryptoměn | Filip Zavoral, Tomáš Faltín (MFF UK) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/) |
 | 19.11.2025 | Vývoj Trezoru Safe 7 | Adam Budinský, Jan Šetina, Tomáš Sušánka (Trezor) |  |
@@ -46,3 +47,5 @@ organizers:
 | 13.6.2026 | Protokol Spark / BTC Prague | Filip Zavoral (MFF UK) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260613-spark-BTCPrg.pptx) [video](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/spark-btcprague.mp4) [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/spark-btcprague.md) |
 | 29.7.2026 | Kvantové hrozby pro bitcoin | Tomáš Sušánka (Trezor) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260729-quantum.pdf) [audio](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260729-quantum.aac) [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260729-quantum.txt) |
 | 19.8.2026 | Entropie, náhoda a generování seedu | Jan Matějek (Trezor) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260819-entropie.pdf) [video](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260819-entropie.mp4) [audio](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260819-entropie.mp3) [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260819-entropie.md) |
+| 12.9.2026 | Soft fork, hard for a chain split (ChainCamp) | iWarp | [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260912-forky.md) |
+| 12.9.2026 |  | Matěj Husák (Trezor) | [slajdy](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260912-node-discovery.pdf) [text](https://teaching.mff.cuni.cz/nswi204-web/jednadvacet/presentations/260912-node-discovery.md) |
