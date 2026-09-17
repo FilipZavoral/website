@@ -1,6 +1,12 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+@layer components {
+  .prose :where(h1, h2, h3, h4, h5, h6) {
+    @apply font-semibold;
+  }
+}
+
 @theme static {
   --color-orange-50: #fef3e6;
   --color-orange-100: #fde8ce;

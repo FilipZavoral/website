@@ -1,249 +1,223 @@
 ---
-last_mapped_commit: 406253b1b73b8ef1369805abfcfd98a6f3adb0d1
+last_mapped_commit: 599ee9aa4c15c119dae17486c0f6ea5999b32b9e
+last_mapped_at: 2026-09-15
 ---
-<!-- refreshed: 2026-09-10 -->
 # Codebase Concerns
 
-**Analysis Date:** 2026-09-10
+**Analysis Date:** 2026-09-15
 
 ## Tech Debt
 
-**Content schemas accept unbounded metadata:**
-- Issue: Shared `seo` and `navigation` fields use `z.any()`, and blog article frontmatter uses `.passthrough()`.
-- Files: `content.config.ts`
-- Impact: Unsupported frontmatter can enter generated content records and rendering paths without validation.
-- Fix approach: Define narrow schemas for supported metadata and explicitly allow only fields consumed by the application.
+**Weak content and extension typing:**
 
-**Build-time extension boundaries are untyped:**
-- Issue: The Nuxt Content transformer and `content:file:afterParse` hook use `any` casts.
-- Files: `shared/blogArticlesTransformer.ts`, `shared/contentRedirectsModule.ts`
-- Impact: Nuxt Content payload changes can silently break publication-date extraction or redirects without type errors.
-- Fix approach: Use framework hook/transformer types where available and add malformed-payload tests at the boundary.
+- Issue: The content schema accepts arbitrary blog frontmatter with `.passthrough()` and uses `z.any()` for SEO/navigation metadata. The custom transformer and module also use `any` at framework boundaries.
+- Files: `content.config.ts`, `shared/blogArticlesTransformer.ts`, `shared/contentRedirectsModule.ts`
+- Impact: Invalid metadata can reach templates, sitemap generation, or redirects without a build-time failure; framework upgrades are harder to type-check safely.
+- Fix approach: Define the supported metadata shape explicitly, type the Nuxt Content hook context, and keep passthrough only for fields with a documented consumer.
 
-**Several integration packages exceed the visible domain model:**
-- Issue: Drizzle, LibSQL, Better SQLite, NuxtHub database support, Studio/IPX, and multiple image/runtime adapters are installed while application data is primarily content-backed and event-cache-backed.
-- Files: `package.json`, `nuxt.config.ts`, `server/utils/portalEvents.ts`
-- Impact: Install size, upgrade burden, and Cloudflare incompatibility risk are larger than the application surface requires.
-- Fix approach: Document each production consumer or remove unused packages and configuration after deployment requirements are confirmed.
+**Duplicated and legacy repository payload:**
 
-**Administrative operations are exposed as query-token GET endpoints:**
-- Issue: Cache clearing, Google reconciliation, and map refresh mutate state through GET requests authenticated with a token in the URL.
-- Files: `server/api/events/cache-clear.get.ts`, `server/api/events/google-sync.get.ts`, `server/api/community-maps/refresh.get.ts`, `server/utils/eventsAdminAuth.ts`
-- Impact: URLs can be retained in browser history, reverse-proxy logs, analytics, and copied referrers; GET semantics also make accidental or automated replays easy.
-- Fix approach: Move mutating operations to POST, accept credentials through an authorization header, disable caching, and add explicit operator/audit controls.
+- Issue: The repository contains a full legacy static export and WordPress assets alongside the active Nuxt source, including `old.jednadvacet.org/` and `jednadvacet.org/`. macOS `.DS_Store` files are also present in source directories.
+- Files: `old.jednadvacet.org/`, `jednadvacet.org/`, `.DS_Store`, `app/.DS_Store`, `content/.DS_Store`
+- Impact: Repository clones, searches, backups, and review context are unnecessarily large; stale copies can be mistaken for deployable source.
+- Fix approach: Move archival exports outside the application repository or document a deliberate archive boundary, remove generated metadata files, and enforce this with `.gitignore` and a repository hygiene check.
 
-**Calendar component performs an unnecessary client refresh:**
-- Issue: `useFetch` already performs an SSR-aware request, then `onMounted` calls `refresh()` again unconditionally.
-- Files: `app/components/content/Calendar.vue`
-- Impact: Each hydrated calendar can duplicate the Portal/cache request and increase Worker and upstream load.
-- Fix approach: Remove the unconditional mounted refresh or refresh only after a documented client-only invalidation condition.
+**Deployment configuration is concentrated in one large file:**
+
+- Issue: Runtime bindings, queues, preview isolation, image providers, storage, redirects, sitemap exclusions, Studio, and Cloudflare deployment settings are all coupled in `nuxt.config.ts`.
+- Files: `nuxt.config.ts`
+- Impact: A change for one environment can silently alter another, and configuration regressions are difficult to review or test independently.
+- Fix approach: Extract small typed configuration helpers for environment selection and generated Cloudflare bindings, then add assertions for preview isolation and required production bindings.
 
 ## Known Bugs
 
-**Typecheck fails because the mounted filesystem exposes two app entry casings:**
-- Symptoms: `npm run typecheck` fails with TS1149 because `/workspace/app/app.vue` and `/workspace/app/App.vue` are both included by the generated Nuxt TypeScript project.
-- Files: `app/app.vue`, `app/App.vue`, `tsconfig.json`, `.nuxt/tsconfig.app.json`
-- Trigger: Run `npm run typecheck` in the current virtiofs-mounted workspace.
-- Workaround: Do not access or delete the wrong-case alias directly; normalize the host filename/mount and restart the affected Docker/OpenCode environment as documented.
+**Calendar data is fetched twice on initial browser render:**
 
-**Virtiofs/OpenCode casing aliases can recur after recovery:**
-- Symptoms: A wrong-case path can reappear and make otherwise valid Nuxt commands report duplicate-file errors.
-- Files: `docs/incidents/opencode-case-alias-on-virtiofs.md`, `AGENTS.md`, `opencode.json`
-- Trigger: Tooling accesses a non-canonical case for a source path on the case-insensitive host mount.
-- Workaround: Stop OpenCode, clean its snapshot, normalize filenames on the host, and restart Docker Desktop; never remove the alias directly from the Linux mount.
+- Symptoms: `Calendar.vue` uses SSR-aware `useFetch` and then calls `refresh()` again from `onMounted`, producing an unnecessary duplicate `/api/events` request for every calendar page visit.
+- Files: `app/components/content/Calendar.vue`
+- Trigger: Load any community page in a browser with the SSR payload available.
+- Workaround: None in the application; remove the unconditional mount refresh or make it conditional on missing/stale data.
 
-**Canonical URL fallback is evaluated too late:**
-- Symptoms: String concatenation happens before `|| '/'`, so the fallback cannot replace an empty path; the root canonical URL also lacks the intended trailing slash normalization.
-- Files: `app/app.vue`
-- Trigger: Render the root route or inspect canonical links for normalized/empty paths.
-- Workaround: None; normalize the path first, then build the complete canonical URL and apply the fallback.
+**Future notification controls are non-functional:**
 
-**Calendar data can be rendered as executable MDC input:**
-- Symptoms: Portal-controlled descriptions are passed directly to `<MDC>`.
-- Files: `app/components/content/Calendar.vue`, `server/utils/portalEvents.ts`
-- Trigger: A Portal event contains Markdown/MDC-like description content.
-- Workaround: Current tests cover normalized fields but do not prove hostile component-like descriptions are rendered as inert text.
+- Symptoms: SMS, email, and web-notification buttons only track analytics and display a “not ready” alert; entered phone numbers and email addresses are persisted in browser local storage but never submitted.
+- Files: `app/components/content/SubscriptionGuide.vue`
+- Trigger: Select a community and activate any of the three notification methods.
+- Workaround: Use the generated iCalendar URL instead.
+
+**Production community-map availability depends on a hard-coded public host:**
+
+- Symptoms: Production hero images are assembled from `https://files.jednadvacet.org`, while local development uses a separate API route. A CDN hostname or storage layout change requires a code deployment.
+- Files: `app/components/page/Community.vue`, `nuxt.config.ts`, `server/api/community-maps/[slug].get.ts`
+- Trigger: Change the R2/CDN hostname, deploy a different environment, or serve a preview through a host that does not expose the configured CDN.
+- Workaround: Reconfigure the application and regenerate map objects together.
 
 ## Security Considerations
 
-**Portal records retain more upstream data than the browser needs:**
-- Risk: `parseEvent` removes selected meetup fields but spreads nearly all other upstream keys into `PortalEvent`; tags are also retained as arbitrary records.
-- Files: `server/utils/portalEvents.ts`, `shared/types/portalEvents.ts`
-- Current mitigation: Known navigation uses `safeLink`; link protocols are restricted; meetup lookup metadata is removed; cache values are validated before reuse.
-- Recommendations: Allowlist the event response fields, use a narrow tag shape, and keep raw diagnostic/upstream metadata server-side.
+**Administrative credential in a query string:**
 
-**MDC is an unsafe trust boundary for remote descriptions:**
-- Risk: A compromised or unexpectedly expressive Portal description may invoke supported MDC components or create unwanted rendered markup.
-- Files: `app/components/content/Calendar.vue`, `server/utils/portalEvents.ts`
-- Current mitigation: Portal payloads are normalized and JSON-LD uses escaped output handling.
-- Recommendations: Render remote descriptions as escaped text, or sanitize and allowlist Markdown features before invoking `MDC`; add hostile-description tests.
+- Risk: `GET /api/community-maps/refresh?token=...` places the admin token in browser history, proxy logs, analytics, cache keys, and copied URLs. The endpoint also uses GET for a mutating enqueue operation.
+- Files: `server/api/community-maps/refresh.get.ts`, `server/utils/eventsAdminAuth.ts`, `README.md`
+- Current mitigation: The token is compared without revealing whether configuration is missing, and responses are marked `no-store`.
+- Recommendations: Change the route to POST and accept the same Bearer header as `server/api/events/refresh.post.ts`; rotate the token after any query-string use and add rate limiting or Cloudflare Access protection.
 
-**Webhook request bodies are not size-limited before buffering:**
-- Risk: `readRawBody` reads the complete request before JSON parsing or rejection, allowing memory pressure from oversized requests.
-- Files: `server/api/events/webhook.post.ts`
-- Current mitigation: HMAC authentication and a five-minute timestamp window prevent unauthorized refresh work.
-- Recommendations: Enforce a small body limit at the Nitro/Worker route boundary and reject oversized requests before buffering where supported.
+**Production Studio/editor surface is enabled by configuration:**
 
-**Webhook replay handling lacks event-ID deduplication:**
-- Risk: Multiple valid deliveries within the timestamp window can repeat Portal refreshes and Google Calendar side effects.
-- Files: `server/api/events/webhook.post.ts`, `server/utils/portalEvents.ts`, `server/utils/googleCalendar.ts`
-- Current mitigation: Timestamped HMAC covers the exact raw body and event/resource/action values are validated.
-- Recommendations: Persist short-lived processed webhook IDs when Portal supplies one, or coalesce refresh/sync work per meetup and event.
+- Risk: `nuxt-studio` is enabled with `studio.dev: true`, its route is explicitly run through the Worker, and the repository is configured as public. Any authentication or publishing misconfiguration exposes a write-capable administrative surface.
+- Files: `nuxt.config.ts`, `shared/contentRedirectsModule.ts`
+- Current mitigation: Studio paths are excluded from the sitemap and the module supplies repository metadata.
+- Recommendations: Make production Studio enablement explicit, verify authentication and branch protections in deployment, and add an integration check that unauthenticated `/_studio` requests cannot edit or publish.
 
-**Admin credentials are exposed through URL transport:**
-- Risk: The `eventsAdminToken` is accepted as `?token=...` on mutating endpoints, making accidental disclosure through logs and history plausible.
-- Files: `server/api/events/cache-clear.get.ts`, `server/api/events/google-sync.get.ts`, `server/api/community-maps/refresh.get.ts`, `nuxt.config.ts`
-- Current mitigation: The token is private runtime configuration and comparison rejects missing or wrong-length values.
-- Recommendations: Use an authorization header and POST endpoints, rotate any token after exposure, and add rate limiting or Cloudflare Access.
+**External content is rendered in rich-content components without a local trust boundary:**
 
-**No application-owned security-header policy is visible:**
-- Risk: CSP, clickjacking protection, and a consistent referrer policy are not defined for the application; remote MDC, analytics, images, and external links would need an explicit policy.
-- Files: `nuxt.config.ts`, `app/components/content/Calendar.vue`, `app/plugins/counterscale.client.ts`
-- Current mitigation: Several external links use `rel="noopener noreferrer"`, and calendar/map responses set `nosniff`.
-- Recommendations: Define and test compatible security headers at the Worker/proxy boundary; add `rel="noopener noreferrer"` to `app/components/SocialLinks.vue` and `app/components/PersonBlock.vue`.
+- Risk: Portal event descriptions are accepted from an external API and passed to `MDCCached`; malformed or newly introduced markup could become an XSS or unsafe-component issue if renderer sanitization changes.
+- Files: `server/utils/portalEvents.ts`, `app/components/content/Calendar.vue`, `content.config.ts`
+- Current mitigation: Event fields are normalized and links are allowlisted to `http`, `https`, `mailto`, and `tel`; JSON-LD escapes `<` in `app/utils/calendar.ts`.
+- Recommendations: Treat descriptions as plain text or explicitly sanitize/allowlist rendered MDC, cap text lengths, and add a browser-level test for hostile HTML and URLs.
 
-**Development server accepts every host:**
-- Risk: `allowedHosts: true` broadens the dev server host trust boundary and should not be carried into a reachable development environment.
-- Files: `nuxt.config.ts`
-- Current mitigation: This is Vite development configuration, not an application production route.
-- Recommendations: Restrict allowed hosts to the documented tunnel/local hosts and keep dev servers inaccessible from untrusted networks.
+**Secrets and third-party access are not validated at deployment time:**
+
+- Risk: Missing Portal, Mapbox, Google OAuth, or event-admin secrets cause runtime queue failures; incorrect secret rotation can leave integrations silently stale.
+- Files: `nuxt.config.ts`, `.env.example`, `server/utils/googleCalendar.ts`, `server/utils/staticMap.ts`, `server/api/events/webhook.post.ts`
+- Current mitigation: Individual integrations reject empty configuration before performing some external work, and `.env.example` documents secret names.
+- Recommendations: Add a production startup/health check that verifies required bindings and secrets without logging values, and alert on repeated queue failures.
 
 ## Performance Bottlenecks
 
-**Stale public calendar requests can stampede the Portal:**
-- Problem: A missing or stale cache causes a public request to fetch both Portal endpoints; `all` refreshes every configured community.
-- Files: `server/api/events/index.get.ts`, `server/utils/portalEvents.ts`, `server/routes/ical/[slug].get.ts`
-- Cause: `getPortalCaches` checks freshness per request but has no refresh lock or stale-while-revalidate path.
-- Improvement path: Coalesce refreshes, refresh only stale communities, serve a bounded stale snapshot when safe, and impose a refresh budget.
+**People pages perform repeated full-collection queries:**
 
-**Person blocks repeat full relationship scans:**
-- Problem: Each `PersonBlock` loads all articles and communities before filtering one person.
-- Files: `app/components/PersonBlock.vue`, `app/pages/lide.vue`, `app/components/page/BlogArticle.vue`, `app/components/page/Community.vue`
-- Cause: The async-data key is person-specific, so multiple blocks do not share the large collection queries.
-- Improvement path: Load a shared relationship projection at the list/page boundary or use an explicit shared cache key.
+- Problem: Each `PersonBlock` loads all blog articles and all communities, then filters locally. The people listing renders one `PersonBlock` per person.
+- Files: `app/components/PersonBlock.vue`, `app/pages/lide.vue`
+- Cause: Related content is queried independently inside every component rather than projected once for the page.
+- Improvement path: Fetch people and relationship indexes once in `app/pages/lide.vue`, pass each block only its related records, and use a dedicated projection only if more than one page needs it.
 
-**Portal refresh repeatedly scans full upstream arrays per community:**
-- Problem: For each community, the full event array is filtered and the full meetup array is searched with `.find()`.
-- Files: `server/utils/portalEvents.ts`
-- Cause: `refreshPortalMeetups` does not index event rows by meetup link or meetup rows by ID before processing selected communities.
-- Improvement path: Build maps once per refresh and bound accepted upstream array sizes before processing.
+**Map refresh repeats the same upstream places request per community:**
 
-**Google reconciliation is an unbounded full-calendar operation:**
-- Problem: Reconciliation lists every integration-owned Google event and creates one operation for every active/cancelled/deleted event.
-- Files: `server/utils/googleCalendar.ts`, `server/api/events/google-sync.get.ts`
-- Cause: There is no maximum event count, execution budget, resumable cursor, or durable sync checkpoint.
-- Improvement path: Bound the managed set, paginate work across jobs, and make reconciliation resumable before event volume grows.
+- Problem: A scheduled refresh enqueues every community separately; every queue message calls `generateCommunityMaps`, which fetches BeruBitcoin places once for that community.
+- Files: `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`, `server/utils/staticMap.ts`
+- Cause: Queue isolation is per community and there is no refresh-batch cache or shared places snapshot.
+- Improvement path: Fetch and validate the places dataset once per scheduled task, pass it through queue payload/storage, or generate all variants in one consumer invocation while preserving retry boundaries.
 
-**Community map generation multiplies external image work:**
-- Problem: A refresh generates three Mapbox images per community and writes all outputs, while a scheduled run covers every visible mapped community.
-- Files: `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`, `server/utils/staticMap.ts`, `nuxt.config.ts`
-- Cause: Each message invokes three external image requests; queue retry and scheduling can repeat expensive work after partial failures.
-- Improvement path: Track generation versions, skip unchanged sources, batch or prioritize variants, and make writes/idempotent retries observable.
+**All-community reads scale with every stored snapshot and event:**
+
+- Problem: The public `all` events endpoint and all-community iCalendar feed enumerate every `community:*` key and load every snapshot into memory before serializing the response.
+- Files: `server/utils/portalEvents.ts`, `server/api/events/index.get.ts`, `server/routes/ical/[slug].get.ts`
+- Cause: KV snapshots are independently stored but aggregation is unbounded; there is no response cache, event-count limit, or payload budget.
+- Improvement path: Add bounded snapshot sizes and response caching, measure serialized payload limits, and consider a materialized all-community snapshot for the public read path.
+
+**Large static assets increase build and deployment cost:**
+
+- Problem: `public/` is approximately 43 MB, with several multi-megabyte blog images, while legacy exports add roughly 110 MB more.
+- Files: `public/images/`, `old.jednadvacet.org/`, `jednadvacet.org/`
+- Cause: Source-sized images and archival static files remain in the deploy repository; only some images use Nuxt Image transformations.
+- Improvement path: Optimize and dimension source images, remove unused exports from the deploy tree, and verify that production builds do not package archival content.
 
 ## Fragile Areas
 
-**Content route and redirect contract:**
-- Files: `content.config.ts`, `shared/data/contentRouteSources.ts`, `scripts/validate-content-routes.ts`, `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `shared/contentRedirectsModule.ts`
-- Why fragile: Pages and communities share `/`; articles and categories share `/blog`; redirect rules are generated during content parsing and route precedence decides the renderer.
-- Safe modification: Preserve filename/prefix rules, run `npm test` and `npm run build`, and add collision fixtures for every new route shape.
-- Test coverage: `tests/validateContentRoutes.test.ts` covers static collisions, but runtime precedence, canonical links, and generated redirects lack browser coverage.
+**Portal snapshot consistency and queue ordering:**
 
-**Portal cache and webhook state machine:**
-- Files: `server/utils/portalEvents.ts`, `server/api/events/webhook.post.ts`, `shared/types/portalEvents.ts`, `tests/portalEvents.test.ts`
-- Why fragile: Cache schema, cancellation retention, sequence revisions, Portal field names, and webhook ordering jointly determine public and iCalendar output.
-- Safe modification: Preserve server-only normalization, test malformed cache/upstream rows, deletion/update races, and concurrent refreshes against a Worker-compatible storage double.
-- Test coverage: Pure normalization and signature tests are strong; HTTP status behavior, body limits, deduplication, and real Portal schema drift are not covered.
+- Files: `server/utils/portalEvents.ts`, `server/plugins/portalEventsQueue.ts`, `server/utils/portalEventsQueue.ts`
+- Why fragile: Writer-side validation is strict, but `parseCacheForRead` trusts any object with the matching schema version. Queue processing relies on sequence numbers and KV visibility while comments acknowledge that KV is not strongly consistent.
+- Safe modification: Preserve sequence coalescing and snapshot replacement semantics, validate read payloads with the same schema as writes, and test duplicate, out-of-order, partial, and concurrent deliveries.
+- Test coverage: `tests/portalEvents.test.ts` covers many refresh cases, but there is no end-to-end Cloudflare KV/queue consistency test.
 
-**Cloudflare/Node dependency boundary:**
-- Files: `nuxt.config.ts`, `package.json`, `app/components/PersonBlock.vue`, `app/components/LightningQrCode.vue`
-- Why fragile: Production uses `cloudflare_module` and aliases `sharp` to an unenv proxy, while transitive Studio/IPX, SQLite, QR, and development tooling dependencies remain Node-oriented.
-- Safe modification: Avoid Node APIs in `server/`, run both standard and Cloudflare builds after dependency/config changes, and verify image/editor behavior in the generated Worker.
-- Test coverage: No committed smoke test executes the generated Worker in an actual Cloudflare environment.
+**Google Calendar reconciliation is a large external side effect:**
 
-**Map generation and object storage publication:**
-- Files: `server/utils/staticMap.ts`, `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`, `app/components/page/Community.vue`
-- Why fragile: Content slugs become object keys, three responsive variants must agree with frontend URLs, and production/local storage paths differ.
-- Safe modification: Keep slug validation and variant names aligned, validate response byte/content limits, and verify a queue retry cannot publish a partial or mismatched set.
-- Test coverage: Pure fetch/URL/selection behavior is tested; queue delivery, R2 permissions, CDN cache invalidation, and browser image fallback are not.
+- Files: `server/utils/googleCalendar.ts`, `server/plugins/portalEventsQueue.ts`
+- Why fragile: A full refresh lists all integration-owned events, performs many writes/deletes, and can fail after partial completion. Queue retries then repeat operations against an external API.
+- Safe modification: Keep stable deterministic event IDs and idempotent PUT/DELETE behavior, preserve rate-limit stopping, and record a durable reconciliation cursor or report before changing operation ordering.
+- Test coverage: `tests/googleCalendar.test.ts` covers request behavior and failure summaries, but not partial retry behavior against a real or emulated queue.
+
+**Cloudflare-specific runtime shims:**
+
+- Files: `nuxt.config.ts`, `package.json`
+- Why fragile: `nodeCompat: true` and the `sharp` alias to `unenv/mock/proxy-cjs` compensate for transitive Nuxt Studio/IPX behavior in Workers. A dependency upgrade can reintroduce Node-only imports or break image/editor routes.
+- Safe modification: Run both `npm run build` and `npm run build:cloudflare`, inspect generated Worker imports, and verify `/_studio`, image, API, queue, and scheduled-task paths after upgrades.
+- Test coverage: Unit tests do not execute the generated Worker bundle.
+
+**Interactive SVG map pointer state:**
+
+- Files: `app/components/CommunityMap.vue`, `app/utils/communityMap.ts`
+- Why fragile: Pointer capture, pinch state, SVG screen matrices, responsive height, and route navigation are coordinated through mutable state and browser-only geometry APIs.
+- Safe modification: Preserve reset behavior on cancellation/unmount, test mouse, keyboard, touch, reduced-motion, and narrow portrait layouts in a browser rather than relying on typecheck.
+- Test coverage: `tests/communityProjection.test.ts` covers data projection, but there is no component/browser interaction test for map gestures or link activation.
+
+**Public routing and redirect hooks:**
+
+- Files: `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `shared/contentRedirectsModule.ts`, `scripts/validate-content-routes.ts`
+- Why fragile: Pages and communities share the root namespace, blog collections share `/blog`, and redirects are added dynamically during content parsing. Route collisions can make valid content unreachable even when Nuxt itself builds.
+- Safe modification: Run `npm run build` after content or routing changes, keep `scripts/validate-content-routes.ts` aligned with Nuxt Content path derivation, and test redirect status/location behavior.
+- Test coverage: `tests/validateContentRoutes.test.ts` covers source collisions, but redirect hook behavior and actual SSR route precedence are not tested.
 
 ## Scaling Limits
 
-**Content-backed relationship views:**
-- Current capacity: The repository contains dozens of communities, blog articles, and people records, with complete collection scans in author/organizer blocks.
-- Limit: Every additional person block repeats article/community projections, and list views load more records as content grows.
-- Scaling path: Select only required fields, centralize relationship projections, and introduce bounded/paginated queries before content volume increases substantially.
+**Portal queue and external API throughput:**
 
-**Portal and iCalendar response size:**
-- Current capacity: `/api/events?community=all` and `/ical/all` aggregate all configured community events and cancellation tombstones.
-- Limit: Response size, cache refresh work, and iCalendar generation grow with communities and retained events; no response/event-count cap is enforced.
-- Scaling path: Add explicit event retention and response limits, per-community feeds, and background refresh/checkpointing.
+- Current capacity: Portal queue consumption is configured with `max_batch_size: 100`, `max_concurrency: 1`, and three retries; community-map consumption allows four concurrent jobs.
+- Limit: Each Portal refresh fetches two external endpoints and can trigger multiple Google operations; each map job fetches places and three images. Backlogs or provider rate limits can extend beyond the daily schedule.
+- Scaling path: Add dead-letter queues, provider-aware backoff, metrics for queue age/failure count, and a batch-level places snapshot. Review Cloudflare subrequest and execution limits before increasing concurrency.
 
-**Queue/external map refresh capacity:**
-- Current capacity: Cloudflare queue is configured with batch size 1 and max concurrency 4; each community message creates three Mapbox requests.
-- Limit: A full scheduled refresh is proportional to mapped communities and can be delayed by rate limits or retries.
-- Scaling path: Add job progress/metrics, idempotent source-version checks, and a controlled refresh budget.
+**Unbounded event and content relationship payloads:**
+
+- Current capacity: `readSelectedCaches('all')` loads every community snapshot, and each `PersonBlock` loads all article/community relationships.
+- Limit: Memory, serialization time, and response size grow with community count, event history, and editorial content.
+- Scaling path: Bound snapshot/event retention and response size, precompute relationship projections, and paginate or cache aggregate public responses.
 
 ## Dependencies at Risk
 
-**Nested `sharp` vulnerability through Nuxt Studio/IPX:**
-- Risk: `npm audit --omit=dev --audit-level=high` reports three high-severity `sharp` findings in the `nuxt-studio` dependency chain; the suggested forced fix changes `nuxt-studio` backward.
-- Impact: Security exposure remains in installed production dependencies even though Cloudflare production cannot execute native `sharp` normally.
-- Migration plan: Upgrade the owning Studio/IPX chain deliberately, verify the `sharp` alias and image behavior in `npm run build:cloudflare`, and remove unused media functionality if possible.
+**Nuxt Studio and Worker image stack:**
 
-**Nested `esbuild` vulnerability through Drizzle tooling:**
-- Risk: The same audit reports moderate `esbuild` findings through legacy `drizzle-kit` transitive dependencies; the suggested forced fix is a breaking downgrade.
-- Impact: Development/build environments remain exposed to dev-server/file-read advisories and dependency resolution is harder to maintain.
-- Migration plan: Upgrade or remove the unused Drizzle tool chain, then regenerate the lockfile and run tests/builds without applying `npm audit fix --force` blindly.
+- Risk: The application depends on `nuxt-studio` and compensates for its transitive image handling with a mocked `sharp` alias, while production uses a Cloudflare Worker preset.
+- Impact: Studio media routes or production builds can fail after module upgrades, potentially affecting both publishing and deployment.
+- Migration plan: Pin and review upgrade diffs, maintain a minimal production route smoke test, and replace the shim with a Worker-compatible image path when the dependency supports it.
 
 ## Missing Critical Features
 
-**Operational error visibility:**
-- Problem: Application failures are logged with `console.error`, but no structured error tracker, alert, refresh metrics, or operator dashboard is configured.
-- Blocks: Fast diagnosis of Portal, Google, miners, map queue, content, and Worker rendering failures.
-- Files: `server/api/events/index.get.ts`, `server/api/events/google-sync.get.ts`, `server/api/miners.get.ts`, `server/plugins/communityMapsQueue.ts`, `app/error.vue`, `app/plugins/counterscale.client.ts`
+**Queue dead-letter and operational recovery:**
 
-**Automated verification and security gates:**
-- Problem: Visible workflows build/deploy PR previews but do not run the repository test suite, typecheck, production build guard, or dependency audit as separate required checks.
-- Blocks: Early detection of the current TS1149 failure and vulnerable dependency regressions.
-- Files: `.github/workflows/pr-preview.yml`, `.github/workflows/pr-preview-comment.yml`, `package.json`
+- Problem: The Portal queue configuration explicitly has no DLQ; messages that fail after retries are discarded, and map/Portal failures depend on logs for discovery.
+- Blocks: Reliable recovery from malformed provider responses, Google outages, or persistent configuration errors.
 
-**Administrative abuse controls:**
-- Problem: Protected maintenance endpoints have token authentication but no rate limit, audit record, IP/identity policy, or explicit CSRF-safe method boundary.
-- Blocks: Safe delegation and forensic review of cache clears, full Google syncs, and map refreshes.
-- Files: `server/api/events/cache-clear.get.ts`, `server/api/events/google-sync.get.ts`, `server/api/community-maps/refresh.get.ts`, `server/utils/eventsAdminAuth.ts`
+**Automated quality gates in CI:**
+
+- Problem: The visible GitHub workflows build and deploy temporary previews but do not run `npm test` or `npm run typecheck` as independent required checks.
+- Blocks: Regression detection for server utilities, route validation, and generated types before preview deployment.
+
+**Real notification subscriptions:**
+
+- Problem: The UI exposes SMS, email, and browser-notification choices but has no server route, persistence, consent flow, delivery provider, unsubscribe path, or retention policy.
+- Blocks: Any notification method other than user-managed iCalendar subscriptions.
 
 ## Test Coverage Gaps
 
-**Typecheck and generated Cloudflare runtime:**
-- What's not tested: A clean case-normalized workspace and execution of the generated Worker with D1/KV/R2/queue bindings.
-- Files: `app/app.vue`, `app/App.vue`, `nuxt.config.ts`, `.github/workflows/pr-preview.yml`
-- Risk: The current `npm run typecheck` failure and deployment-only module/runtime failures can block releases or appear only after deployment.
+**SSR, hydration, and client navigation:**
+
+- What's not tested: Duplicate fetch behavior, head/canonical metadata, error rendering, content route precedence, and hydration of `Calendar.vue`, `CommunityMap.vue`, and `SubscriptionGuide.vue`.
+- Files: `app/app.vue`, `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `app/components/content/Calendar.vue`, `app/components/CommunityMap.vue`
+- Risk: Browser-only regressions can pass all current server utility tests.
 - Priority: High
 
-**Nuxt route and rendered content behavior:**
-- What's not tested: SSR/client hydration, catch-all precedence, 404/error output, redirects, canonical links, image variants, and MDC component rendering.
-- Files: `app/pages/[...slug].vue`, `app/pages/blog/[[slug]].vue`, `app/error.vue`, `shared/contentRedirectsModule.ts`, `app/app.vue`, `app/components/page/Community.vue`
-- Risk: Content can build while the wrong record, metadata, canonical URL, or community hero asset is rendered.
+**Administrative endpoint and webhook integration boundaries:**
+
+- What's not tested: Actual HTTP method/header behavior, request-body size limits, replay/deduplication, queue-unavailable responses, and production runtime bindings.
+- Files: `server/api/events/webhook.post.ts`, `server/api/events/refresh.post.ts`, `server/api/community-maps/refresh.get.ts`
+- Risk: Authentication or deployment wiring can regress without the pure helper tests detecting it.
 - Priority: High
 
-**HTTP security and integration boundaries:**
-- What's not tested: Request-size limits, authorization-header/token handling, admin endpoint method semantics, duplicate webhooks, malformed headers, stale-cache concurrency, and hostile MDC descriptions.
-- Files: `server/api/events/webhook.post.ts`, `server/api/events/cache-clear.get.ts`, `server/api/events/google-sync.get.ts`, `server/api/community-maps/refresh.get.ts`, `server/utils/portalEvents.ts`, `app/components/content/Calendar.vue`
-- Risk: Abuse, privacy leakage, duplicate side effects, and upstream schema changes can affect production without a failing unit test.
+**Generated Cloudflare bundle and scheduled tasks:**
+
+- What's not tested: Queue consumer registration, cron task execution, KV/R2 bindings, preview isolation, and Worker-compatible imports.
+- Files: `nuxt.config.ts`, `server/plugins/portalEventsQueue.ts`, `server/plugins/communityMapsQueue.ts`, `server/tasks/portal-events.ts`, `server/tasks/community-maps.ts`
+- Risk: Production-only failures appear after deployment and may leave public snapshots stale.
 - Priority: High
 
-**Queue, storage, and external-service failure behavior:**
-- What's not tested: Scheduled task context, Cloudflare queue retries, R2 publication failures, CDN freshness, Google pagination limits, and miner upstream body/timeout behavior.
-- Files: `server/tasks/community-maps.ts`, `server/plugins/communityMapsQueue.ts`, `server/utils/staticMap.ts`, `server/utils/googleCalendar.ts`, `server/utils/miners.ts`
-- Risk: Background work can fail partially or become expensive without a user-visible failure or reliable retry diagnosis.
-- Priority: Medium
+**Content integrity and relationship references:**
 
-**Interactive UI behavior:**
-- What's not tested: Calendar duplicate-fetch behavior, tag pagination reset, map responsive/image fallback behavior, modal QR generation, external-link hardening, and accessibility after hydration.
-- Files: `app/components/content/Calendar.vue`, `app/components/CommunityMap.vue`, `app/components/page/Community.vue`, `app/components/PersonBlock.vue`, `app/components/SocialLinks.vue`
-- Risk: Client-only and mobile regressions can pass the Node test suite and typechecking.
+- What's not tested: Missing author/category/organizer references, malformed frontmatter accepted by passthrough schemas, external link safety, and invalid image paths.
+- Files: `content.config.ts`, `content/`, `app/components/PersonBlock.vue`, `app/components/CategoriesBadges.vue`, `app/components/SocialLinks.vue`
+- Risk: Editorial mistakes produce broken pages, missing relationships, or unsafe outbound links.
 - Priority: Medium
 
 ---
 
-*Concerns audit: 2026-09-10*
+*Concerns audit: 2026-09-15*

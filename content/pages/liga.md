@@ -17,9 +17,9 @@ description: BTC Liga navazuje na komunitní bitcoinové kvízy. Z jednorázový
 
 Každé město si samo volí termín i místo konání v rámci daného ligového kola. Tým může reprezentovat své město, ale kvíz může odehrát i jinde. Lokální svoboda, společná liga.
 
-- Kvíz hrajete naživo, u stolu a bez elektroniky.
+- Kvíz probíhá naživo, u stolu a bez elektroniky.
 - Tým tvoří 1 až 5 hráčů.
-- Každé kolo má 21 otázek. Za správné odpovědi sbíráte body do sezónního žebříčku.
+- Každé kolo má 21 otázek. Za správné odpovědi tým sbírá body do sezónního žebříčku.
 - Sezóna má čtyři kola a trvá jeden rok.
 ::
 
@@ -95,7 +95,7 @@ description: Hrajeme poctivě, offline a s respektem k ostatním týmům.
 ---
 
 - Tým musí být předem registrovaný, aby mohl hrát o body a ceny.
-- Během kvízu nepoužívejte telefon, chytré hodinky, notebook ani AI asistenty.
+- Během kvízu se nepoužívá telefon, chytré hodinky, notebook ani AI asistenti.
 - Za každou správnou odpověď získává tým jeden bod. Poslední, 21. otázka je za dva body.
 - Za špatnou odpověď se body neodečítají.
 - Moderátor řídí průběh kvízu a jeho rozhodnutí je konečné.

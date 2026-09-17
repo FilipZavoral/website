@@ -127,6 +127,31 @@ test('cancellation wins when active and cancelled revisions have equal sequence'
   assert.equal(calendar.getFirstSubcomponent('vevent')?.getFirstPropertyValue('status'), 'CANCELLED')
 })
 
+test('calendar serialization keeps the newest revision for a subscribed event', () => {
+  const original: PortalCalendarEvent = {
+    event: normalizedEvent('1', 'Původní název'),
+    sequence: 10,
+    changedAt: now.toISOString(),
+    cancelled: false,
+    community: brno,
+  }
+  const updated: PortalCalendarEvent = {
+    ...original,
+    event: { ...original.event, title: 'Aktualizovaný název' },
+    sequence: 11,
+    changedAt: '2026-08-30T13:00:00.000Z',
+  }
+
+  const calendar = ICAL.Component.fromString(generateCalendar('Jednadvacet', [original, updated]))
+  const event = calendar.getFirstSubcomponent('vevent')
+
+  assert.equal(calendar.getAllSubcomponents('vevent').length, 1)
+  assert.equal(event?.getFirstPropertyValue('uid'), 'meetup-event-1@einundzwanzig.space')
+  assert.equal(event?.getFirstPropertyValue('summary'), 'Aktualizovaný název')
+  assert.equal(event?.getFirstPropertyValue('sequence'), 11)
+  assert.equal(event?.getFirstPropertyValue('status'), 'CONFIRMED')
+})
+
 test('malformed, numeric, duplicate, unknown, and query-extended scopes fail safely', async () => {
   for (const scope of ['360', 'brno/../../private', 'brno,,online-poker', 'brno,brno', undefined]) {
     assert.throws(() => parsePublicCalendarScope(scope), PublicCalendarError)

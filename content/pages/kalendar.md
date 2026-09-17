@@ -8,7 +8,7 @@ redirect_from:
 ::u-page-section
 ---
 title: Bitcoinové akce po celém Česku
-description: Meetupy, konference a přednášky jednadvacítky ve vašem městě.
+description: Meetupy, konference a přednášky jednadvacítky ve tvém městě.
 ---
 
 ::calendar{community="all"}

@@ -6,7 +6,7 @@ const { initialCommunity, directEntry = false } = defineProps<{
 const { $counterscale } = useNuxtApp()
 
 const wholeCountryValue = 'all-czech-communities'
-const fakeDoorAlert = 'Tato možnost ještě není připravená, takže jsme nic neaktivovali. Sledujte prosím naše sociální sítě; už teď můžete odebírat kalendář přes iCalendar.'
+const fakeDoorAlert = 'Tato možnost ještě není připravená, takže jsme nic neaktivovali. Sleduj prosím naše sociální sítě; už teď můžeš odebírat kalendář přes iCalendar.'
 
 // These browser-only convenience values are owned by this guide, retained until
 // the visitor clears them, and never cross a network or analytics boundary.
@@ -159,7 +159,7 @@ const copyCalendarUrl = async (url: string) => {
     copiedCalendarUrl.value = url
   } catch {
     copiedCalendarUrl.value = null
-    copyError.value = 'Adresu se nepodařilo zkopírovat. Označte ji a zkopírujte ručně.'
+    copyError.value = 'Adresu se nepodařilo zkopírovat. Označ ji a zkopíruj ručně.'
   }
 }
 
@@ -176,11 +176,11 @@ onMounted(() => {
   >
     <div v-if="directEntry" class="space-y-2">
       <h2 id="subscription-guide-title" class="text-[28px] font-semibold leading-tight">Sledovat události</h2>
-      <p>Vyberte si komunity a způsob, jakým chcete jejich události sledovat.</p>
+      <p>Vyber si komunity a způsob, jakým chceš jejich události sledovat.</p>
     </div>
 
     <div class="space-y-2">
-      <label for="subscription-community-scope" class="text-sm font-semibold">Komunity, které chcete sledovat</label>
+      <label for="subscription-community-scope" class="text-sm font-semibold">Komunity, které chceš sledovat</label>
       <USelectMenu
         id="subscription-community-scope"
         :model-value="selectedCommunitySlugs"
@@ -190,14 +190,14 @@ onMounted(() => {
         clear
         :disabled="status === 'pending' || status === 'error' || !communities"
         :search-input="{ placeholder: 'Hledat komunitu…' }"
-        aria-label="Komunity, které chcete sledovat"
-        placeholder="Vyberte komunity"
+        aria-label="Komunity, které chceš sledovat"
+        placeholder="Vyber komunity"
         class="w-full"
         @update:model-value="updateCommunityScope"
       />
       <p v-if="status === 'pending'" role="status" class="text-sm text-muted">Načítáme komunity…</p>
       <div v-else-if="status === 'error' || !communities" class="space-y-3" role="alert">
-        <p class="text-sm text-muted">Komunity se nyní nepodařilo načíst. Obnovte stránku a zkuste to znovu.</p>
+        <p class="text-sm text-muted">Komunity se nyní nepodařilo načíst. Obnov stránku a zkus to znovu.</p>
         <UButton color="neutral" variant="outline" @click="retryCommunities">Obnovit</UButton>
       </div>
       <p v-else-if="communities.length === 0" role="status" class="text-sm text-muted">Pro odběr kalendáře zatím není nastavená žádná komunita.</p>
@@ -220,7 +220,7 @@ onMounted(() => {
         </UButton>
       </div>
       <div v-if="isEditingFrequency" class="space-y-3 rounded-lg border border-default bg-elevated p-4">
-        <p class="text-sm font-semibold">Kdy chcete dostávat upozornění?</p>
+        <p class="text-sm font-semibold">Kdy chceš dostávat upozornění?</p>
         <UCheckbox
           v-for="choice in frequencyChoices"
           :key="choice.value"
@@ -234,8 +234,8 @@ onMounted(() => {
 
     <div v-if="status === 'success' && communities?.length" class="space-y-4">
       <div v-if="!hasSelectedScope" class="rounded-lg border border-default bg-elevated p-4" role="status">
-        <h3 class="text-xl font-semibold leading-tight">Vyberte alespoň jednu komunitu</h3>
-        <p class="mt-2 text-sm text-muted">Potom vám ukážeme dostupné možnosti sledování a adresu kalendáře.</p>
+        <h3 class="text-xl font-semibold leading-tight">Vyber alespoň jednu komunitu</h3>
+        <p class="mt-2 text-sm text-muted">Potom ti ukážeme dostupné možnosti sledování a adresu kalendáře.</p>
       </div>
 
       <template v-for="(method, index) in futureMethods" :key="method.title">
@@ -275,9 +275,9 @@ onMounted(() => {
       <USeparator label="nebo" />
       <section class="min-w-0 space-y-4">
         <h3 class="text-xl font-semibold leading-tight">Kalendářový feed</h3>
-        <p>Zkopírujte si adresu a přihlaste ji k odběru ve své kalendářové aplikaci.</p>
+        <p>Zkopíruj si adresu a přihlas ji k odběru ve své kalendářové aplikaci.</p>
         <p v-if="hasSelectedScope" class="text-sm text-muted">Vybraný rozsah: {{ selectedScopeSummary }}</p>
-        <p v-else class="text-sm text-muted">Vyberte alespoň jednu komunitu, abyste získali adresu kalendáře.</p>
+        <p v-else class="text-sm text-muted">Vyber alespoň jednu komunitu, abys získal adresu kalendáře.</p>
 
         <div v-if="hasSelectedScope" class="space-y-4">
           <div v-for="calendar in calendarUrls" :key="calendar.url" class="space-y-2">
@@ -314,32 +314,32 @@ onMounted(() => {
 
         <div class="space-y-2 text-sm text-muted">
           <p>Přihlášení k odběru přes adresu URL udržuje kalendář aktuální. Stažený soubor .ics je jen jednorázová kopie.</p>
-          <p>Čas obnovení určuje vaše kalendářová aplikace.</p>
+          <p>Čas obnovení určuje tvoje kalendářová aplikace.</p>
         </div>
 
         <div class="flex flex-wrap gap-2" aria-label="Návody pro kalendářové aplikace">
           <UPopover>
             <UButton icon="i-simple-icons-googlecalendar" color="neutral" variant="ghost" class="size-11" aria-label="Google Calendar" title="Google Calendar" />
             <template #content>
-              <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevřete Další kalendáře → Přidat další kalendáře → Z adresy URL. Vložte zkopírovanou adresu a potvrďte Přidat kalendář.</p>
+              <p class="max-w-sm p-3 text-sm">V Kalendáři Google otevři Další kalendáře → Přidat další kalendáře → Z adresy URL. Vlož zkopírovanou adresu a potvrď Přidat kalendář.</p>
             </template>
           </UPopover>
           <UPopover>
             <UButton icon="i-simple-icons-apple" color="neutral" variant="ghost" class="size-11" aria-label="Apple Kalendář" title="Apple Kalendář" />
             <template #content>
-              <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vložte adresu URL.</p>
+              <p class="max-w-sm p-3 text-sm">iPhone/iPad: Nastavení → Aplikace → Kalendář → Účty kalendáře → Přidat účet → Jiný → Přidat odebíraný kalendář. Mac: Kalendář → Soubor → Nové přihlášení k odběru kalendáře. V obou případech vlož adresu URL.</p>
             </template>
           </UPopover>
           <UPopover>
             <UButton icon="i-simple-icons-microsoftoutlook" color="neutral" variant="ghost" class="size-11" aria-label="Outlook" title="Outlook" />
             <template #content>
-              <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyberte Přidat kalendář → Přihlásit se k odběru z webu, vložte adresu a uložte. Nevolte Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
+              <p class="max-w-sm p-3 text-sm">V Outlooku na webu vyber Přidat kalendář → Přihlásit se k odběru z webu, vlož adresu a ulož. Nevol Importovat kalendář; ten vytvoří jen jednorázovou kopii.</p>
             </template>
           </UPopover>
           <UPopover>
             <UButton icon="i-lucide-circle-help" color="neutral" variant="ghost" class="size-11" aria-label="Jiná aplikace" title="Jiná aplikace" />
             <template #content>
-              <p class="max-w-sm p-3 text-sm">V aplikaci hledejte volbu jako Přihlásit se k odběru kalendáře, Přidat kalendář z URL nebo Síťový kalendář. Vložte zkopírovanou adresu jako nový odebíraný kalendář.</p>
+              <p class="max-w-sm p-3 text-sm">V aplikaci hledej volbu jako Přihlásit se k odběru kalendáře, Přidat kalendář z URL nebo Síťový kalendář. Vlož zkopírovanou adresu jako nový odebíraný kalendář.</p>
             </template>
           </UPopover>
         </div>

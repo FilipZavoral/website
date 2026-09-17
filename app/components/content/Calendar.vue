@@ -28,6 +28,14 @@ const paginatedEvents = computed(() => filteredEvents.value.slice(
 ))
 const hasActiveFilter = computed(() => !selectedTags.value.includes(allTagsValue))
 const isSubscriptionOpen = ref(false)
+const eventDescriptionComponents = {
+  h1: 'h4',
+  h2: 'h5',
+  h3: 'h6',
+  h4: 'h6',
+  h5: 'h6',
+  h6: 'h6',
+}
 
 const updateSelectedTags = (values: string[]) => {
   if (values.includes(allTagsValue)) {
@@ -99,7 +107,7 @@ useHead(() => ({
         role="alert"
         color="neutral"
         variant="subtle"
-        title="Kalendář se nyní nepodařilo načíst. Zkuste stránku obnovit později."
+        title="Kalendář se nyní nepodařilo načíst. Zkus stránku obnovit později."
       />
       <div v-else-if="isMissingPortalMeetup || data?.length === 0" role="status" class="text-center p-10">
         <h3 class="text-xl font-semibold leading-tight">Žádné naplánované události</h3>
@@ -125,7 +133,7 @@ useHead(() => ({
                   </template>
                 </div>
               </span>
-              <span class="min-w-0 font-medium text-highlighted flex flex-wrap gap-3">
+              <h3 class="min-w-0 font-medium text-highlighted flex flex-wrap gap-3">
                 {{ event.title }}
                 <UBadge v-if="event.community" color="neutral" variant="subtle" size="md">
                   {{ event.community.name }}
@@ -133,7 +141,7 @@ useHead(() => ({
                 <UBadge v-for="tag in event.tagNames" :key="tag" color="neutral" variant="outline" size="md">
                   {{ tag }}
                 </UBadge>
-              </span>
+              </h3>
             </span>
           </template>
 
@@ -157,7 +165,12 @@ useHead(() => ({
                  <ULink :to="event.community.path" class="ms-1">{{ event.community.name }}</ULink>
                 </p> -->
               </div>
-              <MDC v-if="event.description" :value="event.description" class="prose prose-sm dark:prose-invert" />
+              <MDCCached
+                v-if="event.description"
+                :value="event.description"
+                :components="eventDescriptionComponents"
+                class="prose prose-sm dark:prose-invert"
+              />
               <UButton
                 v-if="event.safeLink"
                 :to="event.safeLink"
