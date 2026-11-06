@@ -15,7 +15,6 @@ organizers:
   - hynek-jina
 ---
 
-
 ::calendar{community="praha"}
 ::
 
