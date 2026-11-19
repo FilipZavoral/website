@@ -70,6 +70,12 @@ export default defineEventHandler(async (event) => {
     <itunes:category text="Technology" />
     <itunes:image href="${escapeXml(channelCover)}" />
     ${xmlItems}
+    <podcast:value type="lightning" method="keysend">
+      <podcast:valueRecipient
+        type="lnaddress"
+        address="donate@jednadvacet.org"
+        split="100" />
+    </podcast:value>
   </channel>
 </rss>`
 })
