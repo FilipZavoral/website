@@ -73,28 +73,37 @@ description: Body ze všech potvrzených kol se sčítají do společného žeb�
 
 ### Nováčci
 
-| Pořadí | Tým | Město | Body |
-| --- | --- | --- | --- |
-| 1 | Pokec o Svobodě | Praha | 21 |
-| 2 | NO A CO | Praha | 20 |
-| 2 | Bratrství nápadů | Liberec | 20 |
-| 4 | MFF Fuckboyz | Praha | 19 |
-| 5 | Nový nováčci | Liberec | 15 |
+| Pořadí | Tým | Město | Odehráno | Body |
+| --- | --- | --- | --- | --- |
+| 1 | Pokec o Svobodě | Praha | 1 | 21 |
+| 1 | Satoshiho pivo | Plzeň | 1 | 21 |
+| 1 | Alfrédovci | Olomouc | 1 | 21 |
+| 4 | NO A CO | Praha | 1 | 20 |
+| 4 | Bratrství nápadů | Liberec | 1 | 20 |
+| 6 | MFF Fuckboyz | Praha | 1 | 19 |
+| 7 | BTC One Woman Show | Kladno | 1 | 16 |
+| 8 | Noví nováčci | Liberec | 1 | 15 |
+| 9 | MARTEES-BTC | Králův Dvůr | 1 | 7 |
 
 ### Pokročilí
 
-| Pořadí | Tým | Město | Body |
-| --- | --- | --- | --- |
-| 1 | Eddiesons | Praha | 21 |
-| 2 | TBD | Praha | 19 |
-| 3 | BEZE JMÉNA | Praha | 18 |
-| 4 | Highlenders | Jihlava | 17 |
-| 5 | Twentyone.world | Praha | 16 |
-| 6 | NOBRAINERS | Liberec | 14 |
-| 7 | Krakonoš | Trutnov | 13 |
-| 8 | Kotíci | Šumperk | 11 |
-| 8 | North Stars | Liberec | 11 |
-| 10 | Šumperští CRYPTOJEZEVCI | Šumperk | 7 |
+| Pořadí | Tým | Město | Odehráno | Body |
+| --- | --- | --- | --- | --- |
+| 1 | Eddiesons | Liberec | 1 | 21 |
+| 2 | TBD | Praha | 1 | 19 |
+| 3 | BEZE JMÉNA | Praha | 1 | 18 |
+| 3 | Hradubice | Hradec Králové | 1 | 18 |
+| 5 | Highlenders | Jihlava | 1 | 17 |
+| 5 | We Are All Satoshi | Teplice | 1 | 17 |
+| 7 | Twentyone.world | Praha | 1 | 16 |
+| 8 | BTC…DNO | Kladno | 1 | 15 |
+| 8 | Olomoučtí tipaři | Olomouc | 1 | 15 |
+| 10 | NOBRAINERS | Liberec | 1 | 14 |
+| 11 | Krakonoš | Trutnov | 1 | 13 |
+| 12 | Kotíci | Šumperk | 1 | 11 |
+| 12 | North Stars | Liberec | 1 | 11 |
+| 14 | Šumperští CRYPTOJEZEVCI | Šumperk | 1 | 7 |
+| 15 | Těžaři | Teplice | 1 | 1 |
 
 Výsledky průběžně aktualizujeme po odehrání ligového kola v daných městech.
 ::
